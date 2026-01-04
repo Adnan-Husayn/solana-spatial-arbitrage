@@ -1,7 +1,6 @@
 use anyhow::Result;
 use std::io::{self, Write};
 
-// PASTE YOUR MATH FUNCTION HERE (Identical to src/math.rs)
 pub const FEE_NUMERATOR: u128 = 25;
 pub const FEE_DENOMINATOR: u128 = 10000;
 
@@ -23,13 +22,11 @@ fn get_input(prompt: &str) -> u64 {
     io::stdout().flush().unwrap();
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
-    // Handle decimals if user pastes "150.5" -> this is a raw tool, expect raw integers (lamports)
-    // or we can allow float inputs. Let's ask for Raw Integers to be precise.
     input.trim().parse::<u64>().expect("Please enter a valid u64 integer")
 }
 
 fn main() -> Result<()> {
-    println!("🧮 MATH VALIDATION HARNESS");
+    println!("MATH VALIDATION HARNESS");
     println!("--------------------------");
     println!("Instructions:");
     println!("1. Open Solscan.io");
@@ -43,7 +40,7 @@ fn main() -> Result<()> {
     let amount_in = get_input("3. Amount IN (How much user put in): ");
     let actual_out = get_input("4. Actual Amount OUT (From Solscan): ");
 
-    println!("\n🤖 Computing...");
+    println!("\nComputing...");
     let computed_out = calculate_swap_out(amount_in, reserve_in, reserve_out)?;
 
     println!("--------------------------");
@@ -53,11 +50,11 @@ fn main() -> Result<()> {
     println!("Difference:      {}", diff);
 
     if diff == 0 {
-        println!("✅ PERFECT MATCH");
+        println!("PERFECT MATCH");
     } else if diff < 1000 {
-        println!("⚠️  CLOSE MATCH (Difference likely due to Reserve snapshot timing)");
+        println!("CLOSE MATCH (Difference likely due to Reserve snapshot timing)");
     } else {
-        println!("❌ MISMATCH - Check your logic or Reserve values");
+        println!("MISMATCH - Check your logic or Reserve values");
     }
 
     Ok(())

@@ -1,61 +1,122 @@
-use solana_client::rpc_client::RpcClient;
+use solana_client::{
+    nonblocking::pubsub_client::PubsubClient,
+    rpc_config::{RpcAccountInfoConfig, RpcTransactionLogsConfig, RpcTransactionLogsFilter},
+};
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
     pubkey::Pubkey,
     program_pack::Pack,
+    commitment_config::CommitmentConfig,
 };
+use solana_account_decoder::UiAccountEncoding;
 use spatial_arbitrage_bot::load_env_variables;
 use spl_token::state::Account as TokenAccount;
-use std::str::FromStr;
+use std::{str::FromStr, sync::{Arc, RwLock}, time::{SystemTime, UNIX_EPOCH}};
+use futures::{StreamExt, stream};
 
+const SOL_VAULT_ADDR: &str = "DQyrAcCrDXQ7NeoqGgDCZwBvWDcYmFCjSb9JtteuvPpz";
+const USDC_VAULT_ADDR: &str = "HLmqeL62xR1QoZ1HKKbXRrdN1p3phKpxRMb2VVopvBBz";
+const POOL_ID_ADDR: &str = "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2";
 
-const OFFSET_STATUS: usize = 0;
-const OFFSET_COIN_VAULT: usize = 336; 
-const OFFSET_PC_VAULT: usize = 368;   
-const OFFSET_SWAP_FEE_NUM: usize = 176;
-const OFFSET_SWAP_FEE_DEN: usize = 184;
+#[derive(Debug, Clone, Copy)]
+pub struct MarketState {
+    pub sol_reserves: u64,
+    pub usdc_reserves: u64,
+    pub last_update: u64,
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let (rpc_url, _) = load_env_variables()?;
-    let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
-
+    let ws_url = rpc_url.replace("https", "wss");
     
-    let pool_pubkey = Pubkey::from_str("58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2")?;
-    let account = client.get_account(&pool_pubkey)?;
-
+    println!("Connecting to Helius WSS: {}", ws_url);
     
-    let status = u64::from_le_bytes(account.data[OFFSET_STATUS..OFFSET_STATUS+8].try_into()?);
-    let fee_num = u64::from_le_bytes(account.data[OFFSET_SWAP_FEE_NUM..OFFSET_SWAP_FEE_NUM+8].try_into()?);
-    let fee_den = u64::from_le_bytes(account.data[OFFSET_SWAP_FEE_DEN..OFFSET_SWAP_FEE_DEN+8].try_into()?);
-    
-    let coin_vault = Pubkey::new_from_array(account.data[OFFSET_COIN_VAULT..OFFSET_COIN_VAULT+32].try_into()?);
-    let pc_vault = Pubkey::new_from_array(account.data[OFFSET_PC_VAULT..OFFSET_PC_VAULT+32].try_into()?);
+    let client_state = PubsubClient::new(&ws_url).await?;
+    let client_logs = PubsubClient::new(&ws_url).await?;
 
-    println!("Config Loaded:");
-    println!("   Status: {} (6=Active)", status);
-    println!("   Fee:    {}/{} ({}%)", fee_num, fee_den, (fee_num as f64 / fee_den as f64) * 100.0);
+    let state = Arc::new(RwLock::new(MarketState {
+        sol_reserves: 0,
+        usdc_reserves: 0,
+        last_update: 0,
+    }));
 
-    
-    
-    let vaults = client.get_multiple_accounts(&[coin_vault, pc_vault])?;
-    
-    let coin_data = vaults[0].as_ref().ok_or(anyhow::anyhow!("Base Vault not found"))?;
-    let pc_data = vaults[1].as_ref().ok_or(anyhow::anyhow!("Quote Vault not found"))?;
+    println!("Bootstrapping...");
+    let rpc_client_http = solana_client::rpc_client::RpcClient::new(rpc_url.clone());
+    let sol_vault_pk = Pubkey::from_str(SOL_VAULT_ADDR)?;
+    let usdc_vault_pk = Pubkey::from_str(USDC_VAULT_ADDR)?;
 
-    let coin_balance = TokenAccount::unpack(&coin_data.data)?.amount;
-    let pc_balance = TokenAccount::unpack(&pc_data.data)?.amount;
+    let accounts = rpc_client_http.get_multiple_accounts(&[sol_vault_pk, usdc_vault_pk])?;
+    if let (Some(sol_acc), Some(usdc_acc)) = (&accounts[0], &accounts[1]) {
+        let sol = TokenAccount::unpack(&sol_acc.data)?.amount;
+        let usdc = TokenAccount::unpack(&usdc_acc.data)?.amount;
+        
+        let mut w = state.write().unwrap();
+        w.sol_reserves = sol;
+        w.usdc_reserves = usdc;
+        w.last_update = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        println!("Bootstrap: SOL {} | USDC {}", sol, usdc);
+    }
 
+    let state_bg = state.clone();
     
-    let sol_real = coin_balance as f64 / 1_000_000_000.0; 
-    let usdc_real = pc_balance as f64 / 1_000_000.0;     
-    let price = usdc_real / sol_real;
+    tokio::spawn(async move {
+        println!("Background Account Stream Started...");
+        
+        let config = RpcAccountInfoConfig {
+            encoding: Some(UiAccountEncoding::Base64),
+            commitment: Some(CommitmentConfig::confirmed()),
+            ..RpcAccountInfoConfig::default()
+        };
 
-    println!("\nMARKET SNAPSHOT:");
-    println!("   SOL Liquidity:  {:.2}", sol_real);
-    println!("   USDC Liquidity: {:.2}", usdc_real);
-    println!("   Current Price:  ${:.4}", price);
-    println!("   K (Constant):   {:.0}", sol_real * usdc_real);
+        let (sol_s, _) = client_state.account_subscribe(&sol_vault_pk, Some(config.clone())).await.unwrap();
+        let (usdc_s, _) = client_state.account_subscribe(&usdc_vault_pk, Some(config)).await.unwrap();
+
+        let mut combined = stream::select(
+            sol_s.map(|x| ("SOL", x)), 
+            usdc_s.map(|x| ("USDC", x))
+        );
+
+        while let Some((label, msg)) = combined.next().await {
+            if let Some(decoded) = msg.value.data.decode() {
+                if let Ok(acc) = TokenAccount::unpack(&decoded) {
+                    let mut w = state_bg.write().unwrap();
+                    if label == "SOL" { w.sol_reserves = acc.amount; }
+                    else { w.usdc_reserves = acc.amount; }
+                    w.last_update = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+                }
+            }
+        }
+    });
+
+    println!("Listening for TRADES ...");
+    
+    let filter = RpcTransactionLogsFilter::Mentions(vec![POOL_ID_ADDR.to_string()]);
+    let log_config = RpcTransactionLogsConfig {
+        commitment: Some(CommitmentConfig::processed()), 
+    };
+
+    let (mut log_stream, _) = client_logs.logs_subscribe(filter, log_config).await?;
+
+    while let Some(log) = log_stream.next().await {
+        println!("TRADE DETECTED!! Tx: {}", log.value.signature);
+
+        let r_state = state.read().unwrap();
+        
+        if r_state.sol_reserves > 0 && r_state.usdc_reserves > 0 {
+            let price = (r_state.usdc_reserves as f64 / 1e6) / (r_state.sol_reserves as f64 / 1e9);
+            println!("   Cached Price: ${:.4} (Freshness: {}s)", 
+                price,
+                SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() - r_state.last_update
+            );
+
+            let fake_orca_price = price * 1.005;
+            let spread = fake_orca_price - price;
+            
+            if spread > (price * 0.003) {
+                 println!("   OPPORTUNITY! Spread: ${:.4}", spread);
+            }
+        }
+    }
 
     Ok(())
 }
