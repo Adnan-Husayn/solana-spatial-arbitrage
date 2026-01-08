@@ -4,6 +4,10 @@ use dotenv::dotenv;
 use solana_sdk::signature::{Keypair, read_keypair_file};
 use solana_sdk::signer::Signer;
 
+pub mod instructions;
+pub mod jito;
+pub mod config;
+
 pub fn load_env_variables() -> Result<(String, Keypair)> {
     dotenv().ok();
 
