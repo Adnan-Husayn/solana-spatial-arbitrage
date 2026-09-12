@@ -67,8 +67,8 @@ The bot operates in three concurrent phases:
 
 1. **Clone the Repository**
 ```bash
-git clone https://github.com/your-username/spatial_arbitrage_bot.git
-cd spatial_arbitrage_bot
+git clone https://github.com/Adnan-Husayn/solana-spatial-arbitrage.git
+cd solana-spatial-arbitrage
 
 ```
 
