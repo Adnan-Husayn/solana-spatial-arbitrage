@@ -27,6 +27,11 @@ fn now_secs() -> u64 {
 }
 
 impl MarketState {
+    /// True if no account update has arrived within `max_age_secs`.
+    pub fn is_stale(&self, max_age_secs: u64) -> bool {
+        now_secs().saturating_sub(self.last_update) > max_age_secs
+    }
+
     pub fn is_ready(&self) -> bool {
         self.ray_sol != 0 && self.ray_usdc != 0 && self.orca_sqrt_price != 0
     }
@@ -113,6 +118,16 @@ mod tests {
     #[test]
     fn short_account_errors() {
         assert!(parse_whirlpool(&[0u8; 50]).is_err());
+    }
+
+    #[test]
+    fn staleness() {
+        let st = new_shared();
+        set_ray_sol(&st, 1).unwrap();
+        let mut s = snapshot(&st).unwrap();
+        assert!(!s.is_stale(5));
+        s.last_update -= 60;
+        assert!(s.is_stale(5));
     }
 
     #[test]

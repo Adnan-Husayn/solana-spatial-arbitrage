@@ -47,20 +47,27 @@ pub struct Opportunity {
     pub net_profit: i64,
 }
 
-/// SOL out for a SOL-in round trip, or `None` if a leg can't be quoted.
-pub fn round_trip(st: &MarketState, direction: Direction, sol_in: u64) -> Option<u64> {
+/// USDC received from the first leg of a SOL-in cycle.
+pub fn first_leg_usdc(st: &MarketState, direction: Direction, sol_in: u64) -> Option<u64> {
     match direction {
-        // Orca is richer: sell SOL there, buy it back on Raydium.
-        Direction::BuyRaydiumSellOrca => {
-            let usdc = quote_sol_to_usdc(st, sol_in)?;
-            calculate_swap_out(usdc, st.ray_usdc, st.ray_sol).ok()
-        }
-        // Raydium is richer: sell SOL there, buy it back on Orca.
-        Direction::BuyOrcaSellRaydium => {
-            let usdc = calculate_swap_out(sol_in, st.ray_sol, st.ray_usdc).ok()?;
-            quote_usdc_to_sol(st, usdc)
-        }
+        Direction::BuyRaydiumSellOrca => quote_sol_to_usdc(st, sol_in),
+        Direction::BuyOrcaSellRaydium => calculate_swap_out(sol_in, st.ray_sol, st.ray_usdc).ok(),
     }
+}
+
+/// SOL received from the second leg given the USDC from the first.
+pub fn second_leg_sol(st: &MarketState, direction: Direction, usdc: u64) -> Option<u64> {
+    match direction {
+        Direction::BuyRaydiumSellOrca => calculate_swap_out(usdc, st.ray_usdc, st.ray_sol).ok(),
+        Direction::BuyOrcaSellRaydium => quote_usdc_to_sol(st, usdc),
+    }
+}
+
+/// SOL out for a SOL-in round trip, or `None` if a leg can't be quoted.
+/// BuyRaydiumSellOrca: sell SOL on Orca (richer), buy it back on Raydium.
+/// BuyOrcaSellRaydium: sell SOL on Raydium (richer), buy it back on Orca.
+pub fn round_trip(st: &MarketState, direction: Direction, sol_in: u64) -> Option<u64> {
+    second_leg_sol(st, direction, first_leg_usdc(st, direction, sol_in)?)
 }
 
 fn gross(st: &MarketState, d: Direction, x: u64) -> Option<i128> {

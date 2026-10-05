@@ -6,10 +6,32 @@ use solana_client::{
 };
 use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack, pubkey::Pubkey, signature::Signer};
 use spatial_arbitrage_bot::{
-    config::*, executor, listener, load_env_variables, pricing, state, strategy, ws_url,
+    config::*, executor, jito::JitoClient, listener, load_env_variables, pricing, state, strategy, ws_url,
 };
 use spl_token::state::Account as TokenAccount;
-use std::str::FromStr;
+use std::{fmt, str::FromStr, time::{Duration, Instant}};
+
+/// Skip trading if no account update has arrived recently (e.g. a stalled websocket).
+const MAX_STATE_AGE_SECS: u64 = 30;
+const SIM_COOLDOWN: Duration = Duration::from_secs(2);
+
+#[derive(Default)]
+struct Metrics {
+    events: u64,
+    opportunities: u64,
+    simulated: u64,
+    sim_ok: u64,
+}
+
+impl fmt::Display for Metrics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "slots {} opportunities {} simulated {} ok {}",
+            self.events, self.opportunities, self.simulated, self.sim_ok
+        )
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -49,36 +71,58 @@ async fn main() -> Result<()> {
     println!("Listening for Raydium pool activity...");
 
     let cfg = strategy::StrategyConfig::default();
-    let mut simulated = false;
-    while log_stream.next().await.is_some() {
-        let snap = state::snapshot(&shared)?;
-        if !snap.is_ready() {
+    let jito = JitoClient::new();
+    let mut m = Metrics::default();
+    let mut last_slot = 0u64;
+    let mut last_sim = Instant::now() - SIM_COOLDOWN;
+
+    while let Some(event) = log_stream.next().await {
+        // One evaluation per slot is plenty; the state only changes when accounts update.
+        let slot = event.context.slot;
+        if slot == last_slot {
             continue;
         }
-        if let Some(s) = pricing::spread_from_state(snap.ray_sol, snap.ray_usdc, snap.orca_sqrt_price) {
-            println!(
-                "ray {:.4}  orca {:.4}  spread {:.2} bps  {:?}",
-                s.ray_price, s.orca_price, s.bps, s.direction
-            );
-        }
+        last_slot = slot;
+        m.events += 1;
 
-        if let Some(o) = strategy::evaluate(&snap, &cfg) {
-            println!(
-                "OPPORTUNITY {:?}: in {:.4} SOL, net {:.6} SOL",
-                o.direction,
-                o.amount_in as f64 / 1e9,
-                o.net_profit as f64 / 1e9
-            );
+        let snap = state::snapshot(&shared)?;
+        if !snap.is_ready() || snap.is_stale(MAX_STATE_AGE_SECS) {
+            continue;
         }
-
-        // The combined transaction replaces this one-shot simulation with the real strategy loop.
-        if !simulated {
-            simulated = true;
-            match executor::simulate_raydium_swap(&rpc, &payer, &keys, 10_000_000).await {
-                Ok(None) => println!("Simulation succeeded"),
-                Ok(Some(err)) => println!("Simulation returned error: {err}"),
-                Err(e) => println!("RPC error: {e:#}"),
+        if m.events % 50 == 1 {
+            if let Some(s) = pricing::spread_from_state(snap.ray_sol, snap.ray_usdc, snap.orca_sqrt_price) {
+                println!("ray {:.4}  orca {:.4}  spread {:.2} bps | {m}", s.ray_price, s.orca_price, s.bps);
             }
+        }
+
+        let Some(o) = strategy::evaluate(&snap, &cfg) else { continue };
+        m.opportunities += 1;
+        println!(
+            "OPPORTUNITY slot {slot} {:?}: in {:.4} SOL, net {:.6} SOL",
+            o.direction,
+            o.amount_in as f64 / 1e9,
+            o.net_profit as f64 / 1e9
+        );
+
+        if last_sim.elapsed() < SIM_COOLDOWN {
+            continue;
+        }
+        last_sim = Instant::now();
+
+        let built = async {
+            let ixs = executor::build_arb_instructions(&snap, &o, &cfg, &payer, &keys, &jito)?;
+            let tx = executor::compile_tx(&payer, &ixs, &[], rpc.get_latest_blockhash().await?)?;
+            executor::simulate(&rpc, &tx).await
+        }
+        .await;
+        m.simulated += 1;
+        match built {
+            Ok((None, _)) => {
+                m.sim_ok += 1;
+                println!("   simulation OK (live sending is disabled)");
+            }
+            Ok((Some(err), _)) => println!("   simulation rejected: {err}"),
+            Err(e) => println!("   simulation failed: {e:#}"),
         }
     }
     Ok(())

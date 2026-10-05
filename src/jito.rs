@@ -12,15 +12,16 @@ use std::str::FromStr;
 
 const JITO_URL: &str = "https://amsterdam.mainnet.block-engine.jito.wtf/api/v1/bundles";
 
-const TIP_ACCOUNTS: [&str; 8] = [
-    "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
-    "HFqU5x63VTqvQss8hp11i4wVV8bD44PuwqhdX3Hh9rPN",
-    "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
+/// Jito tip accounts, as returned by the block engine's `getTipAccounts` (identical on all regions).
+pub const TIP_ACCOUNTS: [&str; 8] = [
+    "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
     "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
-    "DfXygSm4jCyNCybVYYK6DwvWqjKkf8tVg9LPBaXRWMrn",
-    "ADuUkR4ykGytmnb5qY1RuXDpnYdZHN82n5pZGQX63Mr5",
-    "DttWaMuVvTiduZRNgLcGW9t66tePvm6znjs5dB088",
-    "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnIzKZ6jJ",
+    "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
+    "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
+    "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
+    "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
+    "ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt",
+    "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
 ];
 
 pub struct JitoClient {
@@ -88,6 +89,18 @@ impl JitoClient {
             let err = resp_json.get("error").map(|e| e.to_string()).unwrap_or("Unknown Error".to_string());
             println!("Jito Error: {}", err);
             Err(anyhow::anyhow!("Jito Error: {}", err))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_tip_accounts_are_valid_pubkeys() {
+        for a in TIP_ACCOUNTS {
+            assert!(Pubkey::from_str(a).is_ok(), "invalid tip account {a}");
         }
     }
 }
