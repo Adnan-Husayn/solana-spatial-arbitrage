@@ -51,7 +51,9 @@ async fn run_once(ws_url: &str, state: &SharedState) -> Result<()> {
     ]);
 
     while let Some((feed, msg)) = combined.next().await {
-        let Some(data) = msg.value.data.decode() else { continue };
+        let Some(data) = msg.value.data.decode() else {
+            continue;
+        };
         if let Err(e) = apply(feed, &data, state) {
             eprintln!("listener: bad {feed:?} update: {e:#}");
         }

@@ -89,7 +89,10 @@ mod tests {
         let st = snapshot();
         let out = quote_sol_to_usdc(&st, SOL / 100).unwrap() as f64 / 1e6;
         let expected = orca_price(st.orca_sqrt_price) * 0.01 * (1.0 - 0.0004);
-        assert!((out - expected).abs() / expected < 1e-3, "{out} vs {expected}");
+        assert!(
+            (out - expected).abs() / expected < 1e-3,
+            "{out} vs {expected}"
+        );
     }
 
     #[test]
@@ -97,7 +100,10 @@ mod tests {
         let st = snapshot();
         let out = quote_usdc_to_sol(&st, 1_000_000).unwrap() as f64 / 1e9; // 1 USDC
         let expected = 1.0 / orca_price(st.orca_sqrt_price) * (1.0 - 0.0004);
-        assert!((out - expected).abs() / expected < 1e-3, "{out} vs {expected}");
+        assert!(
+            (out - expected).abs() / expected < 1e-3,
+            "{out} vs {expected}"
+        );
     }
 
     #[test]
@@ -115,7 +121,10 @@ mod tests {
         let a = quote_sol_to_usdc(&st, SOL).unwrap() as f64;
         let b = quote_sol_to_usdc(&st, 100 * SOL).unwrap() as f64;
         assert!(b > a);
-        assert!(b / 100.0 < a, "bigger trades must get a worse average price");
+        assert!(
+            b / 100.0 < a,
+            "bigger trades must get a worse average price"
+        );
     }
 
     #[test]
@@ -139,6 +148,9 @@ mod tests {
         let mut st = snapshot();
         st.orca_sqrt_price = 6_418_624_578_571_055_275;
         let out = quote_usdc_to_sol(&st, 100_000_000).unwrap();
-        assert!(out.abs_diff(825_622_708) <= 10, "quote {out} vs on-chain 825622708");
+        assert!(
+            out.abs_diff(825_622_708) <= 10,
+            "quote {out} vs on-chain 825622708"
+        );
     }
 }

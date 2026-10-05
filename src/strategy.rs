@@ -22,8 +22,8 @@ pub struct StrategyConfig {
 impl Default for StrategyConfig {
     fn default() -> Self {
         Self {
-            min_trade_lamports: 10_000_000,       // 0.01 SOL
-            max_trade_lamports: 50_000_000_000,   // 50 SOL
+            min_trade_lamports: 10_000_000,     // 0.01 SOL
+            max_trade_lamports: 50_000_000_000, // 50 SOL
             tip_lamports: 10_000,
             tx_fee_lamports: 25_000,
             min_net_profit_lamports: 10_000,
@@ -83,7 +83,9 @@ fn best_size(st: &MarketState, d: Direction, cfg: &StrategyConfig) -> Option<(u6
         return None;
     }
     let ratio = (max as f64 / min as f64).powf(1.0 / GRID as f64);
-    let points: Vec<u64> = (0..=GRID).map(|i| (min as f64 * ratio.powi(i as i32)).round() as u64).collect();
+    let points: Vec<u64> = (0..=GRID)
+        .map(|i| (min as f64 * ratio.powi(i as i32)).round() as u64)
+        .collect();
 
     let (idx, _) = points
         .iter()
@@ -104,7 +106,9 @@ fn best_size(st: &MarketState, d: Direction, cfg: &StrategyConfig) -> Option<(u6
             (None, _) => lo = m1,
         }
     }
-    (lo..=hi).filter_map(|x| gross(st, d, x).map(|g| (x, g))).max_by_key(|&(_, g)| g)
+    (lo..=hi)
+        .filter_map(|x| gross(st, d, x).map(|g| (x, g)))
+        .max_by_key(|&(_, g)| g)
 }
 
 /// Returns the most profitable opportunity above the configured threshold, if any.
@@ -179,7 +183,11 @@ mod tests {
                 break;
             }
             if let Some(g) = gross(&st, o.direction, x as u64) {
-                assert!(o.gross_profit as i128 >= g, "size {x} gave {g} > {}", o.gross_profit);
+                assert!(
+                    o.gross_profit as i128 >= g,
+                    "size {x} gave {g} > {}",
+                    o.gross_profit
+                );
             }
         }
     }
@@ -187,14 +195,20 @@ mod tests {
     #[test]
     fn costs_can_erase_the_edge() {
         let st = with_orca_shift(snapshot(), 1.0);
-        let cfg = StrategyConfig { tip_lamports: 100_000_000_000, ..StrategyConfig::default() };
+        let cfg = StrategyConfig {
+            tip_lamports: 100_000_000_000,
+            ..StrategyConfig::default()
+        };
         assert!(evaluate(&st, &cfg).is_none());
     }
 
     #[test]
     fn min_profit_threshold_is_respected() {
         let st = with_orca_shift(snapshot(), 1.0);
-        let cfg = StrategyConfig { min_net_profit_lamports: u64::MAX / 4, ..StrategyConfig::default() };
+        let cfg = StrategyConfig {
+            min_net_profit_lamports: u64::MAX / 4,
+            ..StrategyConfig::default()
+        };
         assert!(evaluate(&st, &cfg).is_none());
     }
 

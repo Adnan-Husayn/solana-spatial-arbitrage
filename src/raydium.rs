@@ -1,5 +1,5 @@
-use solana_sdk::pubkey::Pubkey;
 use bytemuck::{Pod, Zeroable};
+use solana_sdk::pubkey::Pubkey;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -20,7 +20,7 @@ pub struct AmmInfo {
     pub min_price_multiplier: u64,
     pub max_price_multiplier: u64,
     pub sys_decimal_value: u64,
-    
+
     pub min_separate_numerator: u64,
     pub min_separate_denominator: u64,
     pub trade_fee_numerator: u64,
@@ -29,7 +29,7 @@ pub struct AmmInfo {
     pub pnl_denominator: u64,
     pub swap_fee_numerator: u64,
     pub swap_fee_denominator: u64,
-    
+
     pub need_take_pnl_coin: u64,
     pub need_take_pnl_pc: u64,
     pub total_pnl_pc: u64,
@@ -55,8 +55,8 @@ pub struct AmmInfo {
 
 impl AmmInfo {
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
-        if data.len() != 752 { 
-            return None; 
+        if data.len() != 752 {
+            return None;
         }
         bytemuck::try_from_bytes(data).ok()
     }

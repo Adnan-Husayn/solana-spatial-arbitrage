@@ -23,7 +23,10 @@ pub fn new_shared() -> SharedState {
 }
 
 fn now_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 impl MarketState {
@@ -52,11 +55,21 @@ pub fn parse_whirlpool(data: &[u8]) -> Result<Whirlpool> {
         return Err(anyhow!("whirlpool account too short: {}", data.len()));
     }
     Ok(Whirlpool {
-        sqrt_price: u128::from_le_bytes(data[ORCA_SQRT_PRICE_OFFSET..ORCA_SQRT_PRICE_OFFSET + 16].try_into()?),
-        tick_index: i32::from_le_bytes(data[ORCA_TICK_INDEX_OFFSET..ORCA_TICK_INDEX_OFFSET + 4].try_into()?),
-        liquidity: u128::from_le_bytes(data[ORCA_LIQUIDITY_OFFSET..ORCA_LIQUIDITY_OFFSET + 16].try_into()?),
-        tick_spacing: u16::from_le_bytes(data[ORCA_TICK_SPACING_OFFSET..ORCA_TICK_SPACING_OFFSET + 2].try_into()?),
-        fee_rate: u16::from_le_bytes(data[ORCA_FEE_RATE_OFFSET..ORCA_FEE_RATE_OFFSET + 2].try_into()?),
+        sqrt_price: u128::from_le_bytes(
+            data[ORCA_SQRT_PRICE_OFFSET..ORCA_SQRT_PRICE_OFFSET + 16].try_into()?,
+        ),
+        tick_index: i32::from_le_bytes(
+            data[ORCA_TICK_INDEX_OFFSET..ORCA_TICK_INDEX_OFFSET + 4].try_into()?,
+        ),
+        liquidity: u128::from_le_bytes(
+            data[ORCA_LIQUIDITY_OFFSET..ORCA_LIQUIDITY_OFFSET + 16].try_into()?,
+        ),
+        tick_spacing: u16::from_le_bytes(
+            data[ORCA_TICK_SPACING_OFFSET..ORCA_TICK_SPACING_OFFSET + 2].try_into()?,
+        ),
+        fee_rate: u16::from_le_bytes(
+            data[ORCA_FEE_RATE_OFFSET..ORCA_FEE_RATE_OFFSET + 2].try_into()?,
+        ),
     })
 }
 
@@ -88,7 +101,10 @@ pub fn set_ray_usdc(state: &SharedState, amount: u64) -> Result<()> {
 
 /// Copy the state out so callers never hold the lock across `.await`.
 pub fn snapshot(state: &SharedState) -> Result<MarketState> {
-    state.read().map(|g| *g).map_err(|_| anyhow!("state lock poisoned"))
+    state
+        .read()
+        .map(|g| *g)
+        .map_err(|_| anyhow!("state lock poisoned"))
 }
 
 #[cfg(test)]
@@ -97,8 +113,10 @@ mod tests {
 
     fn fake_whirlpool(sqrt: u128, tick: i32) -> Vec<u8> {
         let mut d = vec![0u8; 653];
-        d[ORCA_LIQUIDITY_OFFSET..ORCA_LIQUIDITY_OFFSET + 16].copy_from_slice(&1_090_735_051_258_027u128.to_le_bytes());
-        d[ORCA_TICK_SPACING_OFFSET..ORCA_TICK_SPACING_OFFSET + 2].copy_from_slice(&4u16.to_le_bytes());
+        d[ORCA_LIQUIDITY_OFFSET..ORCA_LIQUIDITY_OFFSET + 16]
+            .copy_from_slice(&1_090_735_051_258_027u128.to_le_bytes());
+        d[ORCA_TICK_SPACING_OFFSET..ORCA_TICK_SPACING_OFFSET + 2]
+            .copy_from_slice(&4u16.to_le_bytes());
         d[ORCA_FEE_RATE_OFFSET..ORCA_FEE_RATE_OFFSET + 2].copy_from_slice(&400u16.to_le_bytes());
         d[ORCA_SQRT_PRICE_OFFSET..ORCA_SQRT_PRICE_OFFSET + 16].copy_from_slice(&sqrt.to_le_bytes());
         d[ORCA_TICK_INDEX_OFFSET..ORCA_TICK_INDEX_OFFSET + 4].copy_from_slice(&tick.to_le_bytes());

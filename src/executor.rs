@@ -1,6 +1,7 @@
 use crate::config::*;
 use crate::instructions::{
-    OrcaSwapAccounts, build_orca_swap_instruction, build_raydium_swap_instruction, get_associated_token_address,
+    OrcaSwapAccounts, build_orca_swap_instruction, build_raydium_swap_instruction,
+    get_associated_token_address,
 };
 use crate::jito::JitoClient;
 use crate::pricing::Direction;
@@ -44,8 +45,9 @@ pub async fn fetch_market_keys(rpc: &RpcClient) -> Result<MarketKeys> {
     }
     // vault_signer_nonce: u64 at offset 45; the signer is a PDA of [market, nonce].
     let nonce = u64::from_le_bytes(data[45..53].try_into()?);
-    let vault_signer = Pubkey::create_program_address(&[market.as_ref(), &nonce.to_le_bytes()], &program)
-        .map_err(|e| anyhow!("vault signer derivation failed: {e}"))?;
+    let vault_signer =
+        Pubkey::create_program_address(&[market.as_ref(), &nonce.to_le_bytes()], &program)
+            .map_err(|e| anyhow!("vault signer derivation failed: {e}"))?;
 
     Ok(MarketKeys {
         market,
@@ -132,29 +134,30 @@ pub fn build_arb_instructions(
         tick_current: st.orca_tick_index,
         tick_spacing: st.orca_tick_spacing,
     };
-    let raydium = |amount_in: u64, min_out: u64, source: Pubkey, dest: Pubkey| -> Result<Instruction> {
-        Ok(build_raydium_swap_instruction(
-            Pubkey::from_str(RAY_POOL)?,
-            Pubkey::from_str(RAY_AUTH)?,
-            Pubkey::from_str(RAY_OPEN_ORDERS)?,
-            Pubkey::from_str(RAY_TARGET_ORDERS)?,
-            Pubkey::from_str(RAY_COIN_VAULT)?,
-            Pubkey::from_str(RAY_PC_VAULT)?,
-            Pubkey::from_str(OB_PROG_ID)?,
-            keys.market,
-            keys.bids,
-            keys.asks,
-            keys.event_queue,
-            keys.coin_vault,
-            keys.pc_vault,
-            keys.vault_signer,
-            source,
-            dest,
-            owner,
-            amount_in,
-            min_out,
-        ))
-    };
+    let raydium =
+        |amount_in: u64, min_out: u64, source: Pubkey, dest: Pubkey| -> Result<Instruction> {
+            Ok(build_raydium_swap_instruction(
+                Pubkey::from_str(RAY_POOL)?,
+                Pubkey::from_str(RAY_AUTH)?,
+                Pubkey::from_str(RAY_OPEN_ORDERS)?,
+                Pubkey::from_str(RAY_TARGET_ORDERS)?,
+                Pubkey::from_str(RAY_COIN_VAULT)?,
+                Pubkey::from_str(RAY_PC_VAULT)?,
+                Pubkey::from_str(OB_PROG_ID)?,
+                keys.market,
+                keys.bids,
+                keys.asks,
+                keys.event_queue,
+                keys.coin_vault,
+                keys.pc_vault,
+                keys.vault_signer,
+                source,
+                dest,
+                owner,
+                amount_in,
+                min_out,
+            ))
+        };
 
     let (leg1, leg2) = match opp.direction {
         Direction::BuyRaydiumSellOrca => (
@@ -185,7 +188,8 @@ pub fn compile_tx(
 ) -> Result<VersionedTransaction> {
     let msg = v0::Message::try_compile(&payer.pubkey(), ixs, lookup_tables, blockhash)
         .map_err(|e| anyhow!("compile failed: {e}"))?;
-    VersionedTransaction::try_new(VersionedMessage::V0(msg), &[payer]).map_err(|e| anyhow!("sign failed: {e}"))
+    VersionedTransaction::try_new(VersionedMessage::V0(msg), &[payer])
+        .map_err(|e| anyhow!("sign failed: {e}"))
 }
 
 pub fn tx_size(tx: &VersionedTransaction) -> Result<usize> {
@@ -193,9 +197,15 @@ pub fn tx_size(tx: &VersionedTransaction) -> Result<usize> {
 }
 
 /// Simulates a versioned transaction. Returns the error (if any), and the program logs.
-pub async fn simulate(rpc: &RpcClient, tx: &VersionedTransaction) -> Result<(Option<String>, Vec<String>)> {
+pub async fn simulate(
+    rpc: &RpcClient,
+    tx: &VersionedTransaction,
+) -> Result<(Option<String>, Vec<String>)> {
     let res = rpc.simulate_transaction(tx).await?;
-    Ok((res.value.err.map(|e| format!("{e:?}")), res.value.logs.unwrap_or_default()))
+    Ok((
+        res.value.err.map(|e| format!("{e:?}")),
+        res.value.logs.unwrap_or_default(),
+    ))
 }
 
 #[cfg(test)]
@@ -240,7 +250,9 @@ mod tests {
     fn arb_transaction_has_expected_shape() {
         let (st, opp, cfg) = fixture_opportunity();
         let payer = Keypair::new();
-        let ixs = build_arb_instructions(&st, &opp, &cfg, &payer, &dummy_keys(), &JitoClient::new()).unwrap();
+        let ixs =
+            build_arb_instructions(&st, &opp, &cfg, &payer, &dummy_keys(), &JitoClient::new())
+                .unwrap();
         assert_eq!(ixs.len(), 5);
         // Last instruction is the tip transfer; second swap enforces profit on-chain.
         assert_eq!(ixs[4].program_id, solana_sdk::system_program::id());
@@ -253,7 +265,9 @@ mod tests {
         let (st, mut opp, cfg) = fixture_opportunity();
         opp.direction = Direction::BuyOrcaSellRaydium;
         let payer = Keypair::new();
-        let ixs = build_arb_instructions(&st, &opp, &cfg, &payer, &dummy_keys(), &JitoClient::new()).unwrap();
+        let ixs =
+            build_arb_instructions(&st, &opp, &cfg, &payer, &dummy_keys(), &JitoClient::new())
+                .unwrap();
         // Orca is the second leg here: min_out sits at data[16..24].
         let min_out = u64::from_le_bytes(ixs[3].data[16..24].try_into().unwrap());
         assert_eq!(min_out, opp.amount_in + opp.cost);
@@ -263,7 +277,9 @@ mod tests {
     fn tx_size_without_lookup_table_is_reported() {
         let (st, opp, cfg) = fixture_opportunity();
         let payer = Keypair::new();
-        let ixs = build_arb_instructions(&st, &opp, &cfg, &payer, &dummy_keys(), &JitoClient::new()).unwrap();
+        let ixs =
+            build_arb_instructions(&st, &opp, &cfg, &payer, &dummy_keys(), &JitoClient::new())
+                .unwrap();
         let tx = compile_tx(&payer, &ixs, &[], Hash::default()).unwrap();
         let size = tx_size(&tx).unwrap();
         println!("tx size without ALT: {size} / {MAX_TX_SIZE}");

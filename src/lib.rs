@@ -11,9 +11,9 @@ pub mod listener;
 pub mod math;
 pub mod orca;
 pub mod pricing;
-pub mod strategy;
 pub mod raydium;
 pub mod state;
+pub mod strategy;
 
 /// Loads `RPC_URL` and `PRIVATE_KEY` (JSON byte array or base58) from the environment / `.env`.
 pub fn load_env_variables() -> Result<(String, Keypair)> {
@@ -29,11 +29,14 @@ pub fn load_env_variables() -> Result<(String, Keypair)> {
             .map_err(|e| anyhow!("invalid key format (expected JSON array or base58): {e}"))?,
     };
 
-    let keypair = Keypair::from_bytes(&key_bytes).map_err(|e| anyhow!("invalid keypair bytes: {e}"))?;
+    let keypair =
+        Keypair::from_bytes(&key_bytes).map_err(|e| anyhow!("invalid keypair bytes: {e}"))?;
     Ok((rpc_url, keypair))
 }
 
 /// Derives the websocket URL from an HTTP RPC URL.
 pub fn ws_url(rpc_url: &str) -> String {
-    rpc_url.replacen("https://", "wss://", 1).replacen("http://", "ws://", 1)
+    rpc_url
+        .replacen("https://", "wss://", 1)
+        .replacen("http://", "ws://", 1)
 }

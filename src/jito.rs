@@ -1,13 +1,13 @@
-use solana_sdk::{
-    transaction::VersionedTransaction,
-    pubkey::Pubkey,
-    system_instruction,
-    signature::{Keypair, Signer},
-    hash::Hash,
-};
+use rand::seq::SliceRandom;
 use reqwest::Client;
 use serde_json::json;
-use rand::seq::SliceRandom;
+use solana_sdk::{
+    hash::Hash,
+    pubkey::Pubkey,
+    signature::{Keypair, Signer},
+    system_instruction,
+    transaction::VersionedTransaction,
+};
 use std::str::FromStr;
 
 const JITO_URL: &str = "https://amsterdam.mainnet.block-engine.jito.wtf/api/v1/bundles";
@@ -36,26 +36,21 @@ impl JitoClient {
     }
 
     pub fn add_tip_instruction(
-        &self, 
-        user_keypair: &Keypair, 
-        tip_amount_lamports: u64
+        &self,
+        user_keypair: &Keypair,
+        tip_amount_lamports: u64,
     ) -> solana_sdk::instruction::Instruction {
         let mut rng = rand::thread_rng();
         let tip_account_str = TIP_ACCOUNTS.choose(&mut rng).unwrap();
         let tip_account = Pubkey::from_str(tip_account_str).unwrap();
 
-        system_instruction::transfer(
-            &user_keypair.pubkey(),
-            &tip_account,
-            tip_amount_lamports,
-        )
+        system_instruction::transfer(&user_keypair.pubkey(), &tip_account, tip_amount_lamports)
     }
 
     pub async fn send_bundle(
-        &self, 
-        transactions: Vec<VersionedTransaction>
+        &self,
+        transactions: Vec<VersionedTransaction>,
     ) -> anyhow::Result<String> {
-        
         let encoded_txs: Vec<String> = transactions
             .iter()
             .map(|tx| bs58::encode(bincode::serialize(tx).unwrap()).into_string())
@@ -72,7 +67,8 @@ impl JitoClient {
 
         println!("Sending Bundle to Jito...");
 
-        let response = self.client
+        let response = self
+            .client
             .post(JITO_URL)
             .header("Content-Type", "application/json")
             .json(&payload)
@@ -80,13 +76,16 @@ impl JitoClient {
             .await?;
 
         let resp_json: serde_json::Value = response.json().await?;
-        
+
         if let Some(result) = resp_json.get("result") {
             let bundle_id = result.as_str().unwrap_or("Unknown").to_string();
             println!("Bundle Sent! ID: {}", bundle_id);
             Ok(bundle_id)
         } else {
-            let err = resp_json.get("error").map(|e| e.to_string()).unwrap_or("Unknown Error".to_string());
+            let err = resp_json
+                .get("error")
+                .map(|e| e.to_string())
+                .unwrap_or("Unknown Error".to_string());
             println!("Jito Error: {}", err);
             Err(anyhow::anyhow!("Jito Error: {}", err))
         }

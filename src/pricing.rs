@@ -51,7 +51,12 @@ pub fn spread(ray_price: f64, orca_price: f64) -> Option<Spread> {
     } else {
         (Direction::BuyOrcaSellRaydium, orca_price, ray_price)
     };
-    Some(Spread { direction, bps: (high - low) / low * 10_000.0, ray_price, orca_price })
+    Some(Spread {
+        direction,
+        bps: (high - low) / low * 10_000.0,
+        ray_price,
+        orca_price,
+    })
 }
 
 /// Convenience wrapper over raw on-chain state.

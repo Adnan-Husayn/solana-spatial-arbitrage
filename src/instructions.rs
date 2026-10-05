@@ -6,19 +6,17 @@ use solana_sdk::{
 use std::mem::size_of;
 use std::str::FromStr;
 
-
 const RAYDIUM_V4_PROGRAM_ID: &str = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8";
 
-
 const ORCA_WHIRLPOOL_PROGRAM_ID: &str = "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc";
-
 
 pub fn get_associated_token_address(
     wallet_address: &Pubkey,
     token_mint_address: &Pubkey,
 ) -> Pubkey {
     let program_id = Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap();
-    let associated_token_program_id = Pubkey::from_str("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL").unwrap();
+    let associated_token_program_id =
+        Pubkey::from_str("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL").unwrap();
 
     let (address, _) = Pubkey::find_program_address(
         &[
@@ -46,47 +44,41 @@ pub fn build_raydium_swap_instruction(
     market_coin_vault: Pubkey,
     market_pc_vault: Pubkey,
     market_vault_signer: Pubkey,
-    user_source_token: Pubkey,  
-    user_dest_token: Pubkey,    
-    user_owner: Pubkey,         
+    user_source_token: Pubkey,
+    user_dest_token: Pubkey,
+    user_owner: Pubkey,
     amount_in: u64,
     min_amount_out: u64,
 ) -> Instruction {
     let program_id = Pubkey::from_str(RAYDIUM_V4_PROGRAM_ID).unwrap();
 
-    
     let mut data = Vec::with_capacity(1 + 8 + 8);
-    data.push(9); 
+    data.push(9);
     data.extend_from_slice(&amount_in.to_le_bytes());
     data.extend_from_slice(&min_amount_out.to_le_bytes());
 
-    
     let accounts = vec![
-        
-        AccountMeta::new_readonly(Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap(), false),
-        
-        
-        AccountMeta::new(pool_id, false),             
+        AccountMeta::new_readonly(
+            Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap(),
+            false,
+        ),
+        AccountMeta::new(pool_id, false),
         AccountMeta::new_readonly(amm_authority, false),
-        AccountMeta::new(amm_open_orders, false),     
-        AccountMeta::new(amm_target_orders, false),   
-        AccountMeta::new(amm_coin_vault, false),      
-        AccountMeta::new(amm_pc_vault, false),        
-        
-        
+        AccountMeta::new(amm_open_orders, false),
+        AccountMeta::new(amm_target_orders, false),
+        AccountMeta::new(amm_coin_vault, false),
+        AccountMeta::new(amm_pc_vault, false),
         AccountMeta::new_readonly(market_program, false),
-        AccountMeta::new(market_id, false),           
-        AccountMeta::new(market_bids, false),         
-        AccountMeta::new(market_asks, false),         
-        AccountMeta::new(market_event_queue, false),  
-        AccountMeta::new(market_coin_vault, false),   
-        AccountMeta::new(market_pc_vault, false),     
+        AccountMeta::new(market_id, false),
+        AccountMeta::new(market_bids, false),
+        AccountMeta::new(market_asks, false),
+        AccountMeta::new(market_event_queue, false),
+        AccountMeta::new(market_coin_vault, false),
+        AccountMeta::new(market_pc_vault, false),
         AccountMeta::new_readonly(market_vault_signer, false),
-        
-        
-        AccountMeta::new(user_source_token, false),   
-        AccountMeta::new(user_dest_token, false),     
-        AccountMeta::new_readonly(user_owner, true),  
+        AccountMeta::new(user_source_token, false),
+        AccountMeta::new(user_dest_token, false),
+        AccountMeta::new_readonly(user_owner, true),
     ];
 
     Instruction {
@@ -116,7 +108,11 @@ pub fn tick_array_start_index(tick: i32, tick_spacing: u16) -> i32 {
 
 pub fn tick_array_pda(whirlpool: &Pubkey, start_index: i32, program_id: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(
-        &[b"tick_array", whirlpool.as_ref(), start_index.to_string().as_bytes()],
+        &[
+            b"tick_array",
+            whirlpool.as_ref(),
+            start_index.to_string().as_bytes(),
+        ],
         program_id,
     )
     .0
@@ -137,7 +133,11 @@ pub fn swap_tick_arrays(
 ) -> [Pubkey; 3] {
     let step = tick_spacing as i32 * TICK_ARRAY_SIZE;
     // Swapping up, the program looks one spacing ahead so the boundary tick isn't missed.
-    let anchor = if a_to_b { tick_current } else { tick_current + tick_spacing as i32 };
+    let anchor = if a_to_b {
+        tick_current
+    } else {
+        tick_current + tick_spacing as i32
+    };
     let start = tick_array_start_index(anchor, tick_spacing);
     let dir = if a_to_b { -1 } else { 1 };
     [0, 1, 2].map(|i| tick_array_pda(whirlpool, start + dir * i * step, program_id))
@@ -163,9 +163,19 @@ pub fn build_orca_swap_instruction(
 ) -> Instruction {
     let program_id = Pubkey::from_str(ORCA_WHIRLPOOL_PROGRAM_ID).unwrap();
     let token_program = Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap();
-    let [t0, t1, t2] = swap_tick_arrays(&a.whirlpool, a.tick_current, a.tick_spacing, a_to_b, &program_id);
+    let [t0, t1, t2] = swap_tick_arrays(
+        &a.whirlpool,
+        a.tick_current,
+        a.tick_spacing,
+        a_to_b,
+        &program_id,
+    );
 
-    let sqrt_price_limit = if a_to_b { MIN_SQRT_PRICE_X64 } else { MAX_SQRT_PRICE_X64 };
+    let sqrt_price_limit = if a_to_b {
+        MIN_SQRT_PRICE_X64
+    } else {
+        MAX_SQRT_PRICE_X64
+    };
 
     let mut data = Vec::with_capacity(8 + 8 + 8 + 16 + 1 + 1);
     data.extend_from_slice(&ORCA_SWAP_DISCRIMINATOR);
@@ -189,7 +199,11 @@ pub fn build_orca_swap_instruction(
         AccountMeta::new_readonly(oracle_pda(&a.whirlpool, &program_id), false),
     ];
 
-    Instruction { program_id, accounts, data }
+    Instruction {
+        program_id,
+        accounts,
+        data,
+    }
 }
 
 #[cfg(test)]
@@ -199,7 +213,10 @@ mod tests {
 
     #[test]
     fn swap_discriminator_is_sha256_prefix() {
-        assert_eq!(hash(b"global:swap").to_bytes()[..8], ORCA_SWAP_DISCRIMINATOR);
+        assert_eq!(
+            hash(b"global:swap").to_bytes()[..8],
+            ORCA_SWAP_DISCRIMINATOR
+        );
     }
 
     #[test]
@@ -240,13 +257,22 @@ mod tests {
         assert_eq!(ix.accounts.len(), 11);
         assert_eq!(ix.data.len(), 42);
         assert_eq!(ix.data[..8], ORCA_SWAP_DISCRIMINATOR);
-        assert_eq!(u64::from_le_bytes(ix.data[8..16].try_into().unwrap()), 1_000);
+        assert_eq!(
+            u64::from_le_bytes(ix.data[8..16].try_into().unwrap()),
+            1_000
+        );
         assert_eq!(u64::from_le_bytes(ix.data[16..24].try_into().unwrap()), 900);
-        assert_eq!(u128::from_le_bytes(ix.data[24..40].try_into().unwrap()), MIN_SQRT_PRICE_X64);
+        assert_eq!(
+            u128::from_le_bytes(ix.data[24..40].try_into().unwrap()),
+            MIN_SQRT_PRICE_X64
+        );
         assert_eq!(ix.data[40..], [1, 1]);
         assert!(ix.accounts[1].is_signer);
         let up = build_orca_swap_instruction(&a, 1_000, 900, false);
-        assert_eq!(u128::from_le_bytes(up.data[24..40].try_into().unwrap()), MAX_SQRT_PRICE_X64);
+        assert_eq!(
+            u128::from_le_bytes(up.data[24..40].try_into().unwrap()),
+            MAX_SQRT_PRICE_X64
+        );
         assert_eq!(up.data[41], 0);
     }
 }

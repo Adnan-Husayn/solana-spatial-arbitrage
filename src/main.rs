@@ -4,12 +4,19 @@ use solana_client::{
     nonblocking::{pubsub_client::PubsubClient, rpc_client::RpcClient},
     rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter},
 };
-use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack, pubkey::Pubkey, signature::Signer};
+use solana_sdk::{
+    commitment_config::CommitmentConfig, program_pack::Pack, pubkey::Pubkey, signature::Signer,
+};
 use spatial_arbitrage_bot::{
-    config::*, executor, jito::JitoClient, listener, load_env_variables, pricing, state, strategy, ws_url,
+    config::*, executor, jito::JitoClient, listener, load_env_variables, pricing, state, strategy,
+    ws_url,
 };
 use spl_token::state::Account as TokenAccount;
-use std::{fmt, str::FromStr, time::{Duration, Instant}};
+use std::{
+    fmt,
+    str::FromStr,
+    time::{Duration, Instant},
+};
 
 /// Skip trading if no account update has arrived recently (e.g. a stalled websocket).
 const MAX_STATE_AGE_SECS: u64 = 30;
@@ -66,7 +73,9 @@ async fn main() -> Result<()> {
 
     let logs_client = PubsubClient::new(&ws).await?;
     let filter = RpcTransactionLogsFilter::Mentions(vec![RAY_POOL.to_string()]);
-    let cfg = RpcTransactionLogsConfig { commitment: Some(CommitmentConfig::processed()) };
+    let cfg = RpcTransactionLogsConfig {
+        commitment: Some(CommitmentConfig::processed()),
+    };
     let (mut log_stream, _unsub) = logs_client.logs_subscribe(filter, cfg).await?;
     println!("Listening for Raydium pool activity...");
 
@@ -90,12 +99,19 @@ async fn main() -> Result<()> {
             continue;
         }
         if m.events % 50 == 1 {
-            if let Some(s) = pricing::spread_from_state(snap.ray_sol, snap.ray_usdc, snap.orca_sqrt_price) {
-                println!("ray {:.4}  orca {:.4}  spread {:.2} bps | {m}", s.ray_price, s.orca_price, s.bps);
+            if let Some(s) =
+                pricing::spread_from_state(snap.ray_sol, snap.ray_usdc, snap.orca_sqrt_price)
+            {
+                println!(
+                    "ray {:.4}  orca {:.4}  spread {:.2} bps | {m}",
+                    s.ray_price, s.orca_price, s.bps
+                );
             }
         }
 
-        let Some(o) = strategy::evaluate(&snap, &cfg) else { continue };
+        let Some(o) = strategy::evaluate(&snap, &cfg) else {
+            continue;
+        };
         m.opportunities += 1;
         println!(
             "OPPORTUNITY slot {slot} {:?}: in {:.4} SOL, net {:.6} SOL",

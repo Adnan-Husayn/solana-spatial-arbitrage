@@ -13,7 +13,8 @@ use std::str::FromStr;
 
 fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
-    let rpc_url = std::env::var("RPC_URL").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".into());
+    let rpc_url =
+        std::env::var("RPC_URL").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".into());
     let rpc = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
 
     let pool = Pubkey::from_str(ORCA_WHIRLPOOL)?;
@@ -52,7 +53,10 @@ fn main() -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    println!("err={:?} units={:?}", res.value.err, res.value.units_consumed);
+    println!(
+        "err={:?} units={:?}",
+        res.value.err, res.value.units_consumed
+    );
     for l in res.value.logs.unwrap_or_default() {
         println!("  {l}");
     }
