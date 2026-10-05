@@ -196,6 +196,44 @@ pub fn tx_size(tx: &VersionedTransaction) -> Result<usize> {
     Ok(bincode::serialize(tx)?.len())
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WalletBalances {
+    /// Native SOL, in lamports.
+    pub native: u64,
+    /// Wrapped SOL in the wallet's WSOL token account (None if the account doesn't exist).
+    pub wsol: Option<u64>,
+    /// USDC in the wallet's token account, base units (None if the account doesn't exist).
+    pub usdc: Option<u64>,
+}
+
+impl WalletBalances {
+    /// Total wallet value in lamports, pricing USDC at `usdc_per_sol`.
+    pub fn total_lamports(&self, usdc_per_sol: f64) -> i64 {
+        let usdc_as_lamports = if usdc_per_sol > 0.0 {
+            (self.usdc.unwrap_or(0) as f64 / 1e6 / usdc_per_sol * 1e9) as i64
+        } else {
+            0
+        };
+        self.native as i64 + self.wsol.unwrap_or(0) as i64 + usdc_as_lamports
+    }
+}
+
+pub async fn fetch_balances(rpc: &RpcClient, owner: &Pubkey) -> Result<WalletBalances> {
+    let wsol = get_associated_token_address(owner, &Pubkey::from_str(SOL_MINT)?);
+    let usdc = get_associated_token_address(owner, &Pubkey::from_str(USDC_MINT)?);
+    let accts = rpc.get_multiple_accounts(&[*owner, wsol, usdc]).await?;
+    let token = |a: &Option<solana_sdk::account::Account>| -> Result<Option<u64>> {
+        a.as_ref()
+            .map(|a| crate::state::token_amount(&a.data))
+            .transpose()
+    };
+    Ok(WalletBalances {
+        native: accts[0].as_ref().map(|a| a.lamports).unwrap_or(0),
+        wsol: token(&accts[1])?,
+        usdc: token(&accts[2])?,
+    })
+}
+
 /// Simulates a versioned transaction. Returns the error (if any), and the program logs.
 pub async fn simulate(
     rpc: &RpcClient,
@@ -244,6 +282,19 @@ mod tests {
             pc_vault: u(),
             vault_signer: u(),
         }
+    }
+
+    #[test]
+    fn wallet_total_prices_usdc_in_sol() {
+        let b = WalletBalances {
+            native: 1_000_000_000,
+            wsol: Some(500_000_000),
+            usdc: Some(120_000_000),
+        };
+        // 120 USDC at 120 USDC/SOL = 1 SOL
+        assert_eq!(b.total_lamports(120.0), 2_500_000_000);
+        assert_eq!(WalletBalances::default().total_lamports(120.0), 0);
+        assert_eq!(b.total_lamports(0.0), 1_500_000_000);
     }
 
     #[test]

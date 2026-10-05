@@ -12,6 +12,7 @@ pub mod math;
 pub mod orca;
 pub mod pricing;
 pub mod raydium;
+pub mod risk;
 pub mod state;
 pub mod strategy;
 

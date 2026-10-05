@@ -102,6 +102,25 @@ cargo build --release
 
 ---
 
+## Configuration
+
+All settings are optional environment variables (or `.env` entries) besides `RPC_URL` and `PRIVATE_KEY`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `LIVE` | `false` | Send real bundles. Off means simulate only. |
+| `MAX_LIVE_TRADE_SOL` | `1` | Hard cap on trade size when live |
+| `MAX_DAILY_LOSS_SOL` | `0.1` | Stop trading for the UTC day once realized losses reach this |
+| `MIN_BALANCE_SOL` | `0.05` | Native SOL that must stay in the wallet |
+| `KILL_FILE` | `KILL` | Trading halts while this file exists |
+| `JITO_URL` | Amsterdam block engine | Jito bundles endpoint |
+| `MIN_TRADE_SOL` / `MAX_TRADE_SOL` | `0.01` / `50` | Strategy search range |
+| `TIP_LAMPORTS` / `TX_FEE_LAMPORTS` | `10000` / `25000` | Per-trade costs used in the profit model |
+| `MIN_NET_PROFIT_LAMPORTS` | `10000` | Ignore opportunities below this |
+| `RUST_LOG` | `info` | Log level |
+
+Live mode needs a dedicated wallet with a WSOL and a USDC token account. Keep only an amount you can afford to lose in it.
+
 ## 🏃 Usage
 
 Run the bot in **Simulation Mode** (Default). This will monitor the chain and attempt to simulate a trade whenever it detects activity.
