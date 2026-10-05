@@ -34,8 +34,10 @@ pub struct AmmInfo {
     pub need_take_pnl_pc: u64,
     pub total_pnl_pc: u64,
     pub total_pnl_coin: u64,
-    
-    
+
+    /// StateData and other fields between the header and the pubkeys (offsets 224..336).
+    pub state_padding: [u64; 14],
+
     pub pool_coin_token_account: Pubkey,
     pub pool_pc_token_account: Pubkey,
     pub coin_mint_address: Pubkey,
@@ -49,9 +51,6 @@ pub struct AmmInfo {
     pub pool_temp_lp_token_account: Pubkey,
     pub amm_owner: Pubkey,
     pub pnl_owner: Pubkey,
-    
-    
-    pub padding: [u64; 14], 
 }
 
 impl AmmInfo {
@@ -60,5 +59,21 @@ impl AmmInfo {
             return None; 
         }
         bytemuck::try_from_bytes(data).ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::mem::{offset_of, size_of};
+
+    #[test]
+    fn layout_matches_mainnet() {
+        assert_eq!(size_of::<AmmInfo>(), 752);
+        assert_eq!(offset_of!(AmmInfo, pool_coin_token_account), 336);
+        assert_eq!(offset_of!(AmmInfo, pool_pc_token_account), 368);
+        assert_eq!(offset_of!(AmmInfo, amm_open_orders), 496);
+        assert_eq!(offset_of!(AmmInfo, serum_market), 528);
+        assert_eq!(offset_of!(AmmInfo, amm_target_orders), 592);
     }
 }

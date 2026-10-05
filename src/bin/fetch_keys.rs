@@ -3,7 +3,6 @@ use solana_sdk::{
     pubkey::Pubkey,
     commitment_config::CommitmentConfig,
 };
-use spatial_arbitrage_bot::load_env_variables;
 use std::str::FromStr;
 
 
@@ -13,8 +12,9 @@ const ORCA_WHIRLPOOL: &str = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE";
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     
-    let (rpc_url, _) = load_env_variables()?;
-    println!("CONNECTING VIA HELIUS: {}", rpc_url);
+    dotenv::dotenv().ok();
+    let rpc_url = std::env::var("RPC_URL")?;
+    println!("Connecting to RPC...");
     
     let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
     
@@ -25,13 +25,13 @@ async fn main() -> anyhow::Result<()> {
 
     
     
-    let market_id = Pubkey::new_from_array(data[208..240].try_into()?);
-    let market_program_id = Pubkey::new_from_array(data[240..272].try_into()?);
+    let market_id = Pubkey::new_from_array(data[528..560].try_into()?);
+    let market_program_id = Pubkey::new_from_array(data[560..592].try_into()?);
     
     
-    let amm_open_orders = Pubkey::new_from_array(data[112..144].try_into()?);
+    let amm_open_orders = Pubkey::new_from_array(data[496..528].try_into()?);
     
-    let amm_target_orders = Pubkey::new_from_array(data[144..176].try_into()?);
+    let amm_target_orders = Pubkey::new_from_array(data[592..624].try_into()?);
     
     
 
@@ -67,17 +67,16 @@ async fn main() -> anyhow::Result<()> {
     let orca_pk = Pubkey::from_str(ORCA_WHIRLPOOL)?;
     let orca_acc = client.get_account(&orca_pk)?;
     let o_data = orca_acc.data;
-    let tick_spacing = u16::from_le_bytes(o_data[33..35].try_into()?);
+    let tick_spacing = u16::from_le_bytes(o_data[41..43].try_into()?);
     
     
-    let orca_vault_a = Pubkey::new_from_array(o_data[101..133].try_into()?);
-    let orca_vault_b = Pubkey::new_from_array(o_data[133..165].try_into()?);
-    let orca_oracle = Pubkey::new_from_array(o_data[261..293].try_into()?);
+    let orca_vault_a = Pubkey::new_from_array(o_data[133..165].try_into()?);
+    let orca_vault_b = Pubkey::new_from_array(o_data[213..245].try_into()?);
 
     println!("   Tick Spacing:   {}", tick_spacing);
     println!("   Vault A (SOL):  {}", orca_vault_a);
     println!("   Vault B (USDC): {}", orca_vault_b);
-    println!("   Oracle:         {}", orca_oracle);
+    println!("   (oracle is a PDA: [\"oracle\", whirlpool], derived in Phase 3)");
 
     println!("\n------------------------------------------------");
     println!("SUCCESS! Copy these values.");
