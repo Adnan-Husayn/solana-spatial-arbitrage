@@ -21,6 +21,10 @@ pub const OB_MARKET_ID: &str = "8BnEgHoWFysVcuFFX7QztDmzuH8r5ZFvyP3sYwn1XTh6";
 // Orca Whirlpool SOL/USDC (token A = SOL, token B = USDC)
 pub const ORCA_WHIRLPOOL: &str = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE";
 
+pub const ORCA_PROGRAM_ID: &str = "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc";
+pub const ORCA_VAULT_A: &str = "EUuUbDcafPrmVTD5M6qoJAoyyNbihBhugADAxRMn5he9"; // SOL
+pub const ORCA_VAULT_B: &str = "2WLWEuKDgkDUccTpbwYp1GToYktiSB1cXvreHUwiSUVP"; // USDC
+
 // Whirlpool account layout (Anchor: 8-byte discriminator first)
 pub const ORCA_TICK_SPACING_OFFSET: usize = 41;
 pub const ORCA_FEE_RATE_OFFSET: usize = 45;

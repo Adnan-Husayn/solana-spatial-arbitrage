@@ -131,4 +131,14 @@ mod tests {
         st.orca_liquidity = 0;
         assert!(quote_sol_to_usdc(&st, SOL).is_none());
     }
+
+    #[test]
+    fn matches_an_on_chain_swap() {
+        // Simulated mainnet swap, 2026-10-06: 100 USDC in -> 825_622_708 lamports out,
+        // from the pool's Traded event (pre-swap sqrt price below).
+        let mut st = snapshot();
+        st.orca_sqrt_price = 6_418_624_578_571_055_275;
+        let out = quote_usdc_to_sol(&st, 100_000_000).unwrap();
+        assert!(out.abs_diff(825_622_708) <= 10, "quote {out} vs on-chain 825622708");
+    }
 }
