@@ -4,14 +4,12 @@ use solana_client::{
     nonblocking::{pubsub_client::PubsubClient, rpc_client::RpcClient},
     rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter},
 };
-use solana_sdk::{
-    commitment_config::CommitmentConfig, program_pack::Pack, pubkey::Pubkey, signature::Signer,
-};
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::{pubkey::Pubkey, signature::Signer};
 use spatial_arbitrage_bot::{
     config::*, executor, jito::JitoClient, listener, load_env_variables, pricing, state, strategy,
     ws_url,
 };
-use spl_token::state::Account as TokenAccount;
 use std::{
     fmt,
     str::FromStr,
@@ -70,8 +68,8 @@ async fn main() -> Result<()> {
         ])
         .await?;
     if let [Some(s), Some(u), Some(o)] = accounts.as_slice() {
-        state::set_ray_sol(&shared, TokenAccount::unpack(&s.data)?.amount)?;
-        state::set_ray_usdc(&shared, TokenAccount::unpack(&u.data)?.amount)?;
+        state::set_ray_sol(&shared, state::token_amount(&s.data)?)?;
+        state::set_ray_usdc(&shared, state::token_amount(&u.data)?)?;
         state::set_orca(&shared, &o.data)?;
         tracing::info!("bootstrap complete");
     }

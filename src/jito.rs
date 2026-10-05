@@ -4,7 +4,6 @@ use serde_json::json;
 use solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    system_instruction,
     transaction::VersionedTransaction,
 };
 use std::str::FromStr;
@@ -49,7 +48,11 @@ impl JitoClient {
         let tip_account_str = TIP_ACCOUNTS.choose(&mut rng).unwrap();
         let tip_account = Pubkey::from_str(tip_account_str).unwrap();
 
-        system_instruction::transfer(&user_keypair.pubkey(), &tip_account, tip_amount_lamports)
+        solana_system_interface::instruction::transfer(
+            &user_keypair.pubkey(),
+            &tip_account,
+            tip_amount_lamports,
+        )
     }
 
     pub async fn send_bundle(

@@ -9,8 +9,8 @@ use crate::state::MarketState;
 use crate::strategy::{Opportunity, StrategyConfig, first_leg_usdc};
 use anyhow::{Result, anyhow};
 use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction,
     hash::Hash,
     instruction::Instruction,
     message::{VersionedMessage, v0},
@@ -183,7 +183,7 @@ pub fn build_arb_instructions(
 pub fn compile_tx(
     payer: &Keypair,
     ixs: &[Instruction],
-    lookup_tables: &[solana_sdk::address_lookup_table::AddressLookupTableAccount],
+    lookup_tables: &[solana_message::AddressLookupTableAccount],
     blockhash: Hash,
 ) -> Result<VersionedTransaction> {
     let msg = v0::Message::try_compile(&payer.pubkey(), ixs, lookup_tables, blockhash)
@@ -255,7 +255,7 @@ mod tests {
                 .unwrap();
         assert_eq!(ixs.len(), 5);
         // Last instruction is the tip transfer; second swap enforces profit on-chain.
-        assert_eq!(ixs[4].program_id, solana_sdk::system_program::id());
+        assert_eq!(ixs[4].program_id, solana_sdk_ids::system_program::id());
         let min_out = u64::from_le_bytes(ixs[3].data[9..17].try_into().unwrap());
         assert_eq!(min_out, opp.amount_in + opp.cost);
     }

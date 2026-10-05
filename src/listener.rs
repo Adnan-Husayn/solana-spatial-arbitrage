@@ -4,8 +4,8 @@ use anyhow::{Result, anyhow};
 use futures::{StreamExt, stream};
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::{nonblocking::pubsub_client::PubsubClient, rpc_config::RpcAccountInfoConfig};
-use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack, pubkey::Pubkey};
-use spl_token::state::Account as TokenAccount;
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::pubkey::Pubkey;
 use std::{str::FromStr, time::Duration};
 
 #[derive(Clone, Copy, Debug)]
@@ -64,7 +64,7 @@ async fn run_once(ws_url: &str, state: &SharedState) -> Result<()> {
 fn apply(feed: Feed, data: &[u8], st: &SharedState) -> Result<()> {
     match feed {
         Feed::Orca => state::set_orca(st, data),
-        Feed::RaySol => state::set_ray_sol(st, TokenAccount::unpack(data)?.amount),
-        Feed::RayUsdc => state::set_ray_usdc(st, TokenAccount::unpack(data)?.amount),
+        Feed::RaySol => state::set_ray_sol(st, state::token_amount(data)?),
+        Feed::RayUsdc => state::set_ray_usdc(st, state::token_amount(data)?),
     }
 }

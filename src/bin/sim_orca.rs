@@ -3,12 +3,13 @@
 //! wallet or funds are needed. Nothing is ever sent.
 
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig};
-use solana_sdk::{
-    commitment_config::CommitmentConfig, message::Message, program_pack::Pack, pubkey::Pubkey,
-    transaction::Transaction,
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::{message::Message, pubkey::Pubkey, transaction::Transaction};
+use spatial_arbitrage_bot::{
+    config::*,
+    instructions::*,
+    state::{self, parse_whirlpool},
 };
-use spatial_arbitrage_bot::{config::*, instructions::*, state::parse_whirlpool};
-use spl_token::state::Account as TokenAccount;
 use std::str::FromStr;
 
 fn main() -> anyhow::Result<()> {
@@ -26,7 +27,7 @@ fn main() -> anyhow::Result<()> {
 
     // Raydium's USDC vault is a large, known USDC account; its owner is the Raydium authority.
     let usdc_acc = Pubkey::from_str(RAY_PC_VAULT)?;
-    let owner = TokenAccount::unpack(&rpc.get_account(&usdc_acc)?.data)?.owner;
+    let owner = state::token_owner(&rpc.get_account(&usdc_acc)?.data)?;
 
     let ix = build_orca_swap_instruction(
         &OrcaSwapAccounts {

@@ -16,6 +16,23 @@ pub struct MarketState {
     pub last_update: u64,
 }
 
+/// SPL token account layout: mint [0..32], owner [32..64], amount u64 [64..72].
+pub fn token_amount(data: &[u8]) -> Result<u64> {
+    if data.len() < 72 {
+        return Err(anyhow!("token account too short: {}", data.len()));
+    }
+    Ok(u64::from_le_bytes(data[64..72].try_into()?))
+}
+
+pub fn token_owner(data: &[u8]) -> Result<solana_sdk::pubkey::Pubkey> {
+    if data.len() < 64 {
+        return Err(anyhow!("token account too short: {}", data.len()));
+    }
+    Ok(solana_sdk::pubkey::Pubkey::new_from_array(
+        data[32..64].try_into()?,
+    ))
+}
+
 pub type SharedState = Arc<RwLock<MarketState>>;
 
 pub fn new_shared() -> SharedState {
