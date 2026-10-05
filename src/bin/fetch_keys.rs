@@ -26,6 +26,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("RAYDIUM POOL FOUND");
     println!("   Market ID:      {}", market_id);
+    println!("   Market Program: {}", market_program_id);
     println!("   AMM OpenOrders: {}", amm_open_orders);
     println!("   AMM TargetOrd:  {}", amm_target_orders);
 
@@ -38,7 +39,6 @@ async fn main() -> anyhow::Result<()> {
     let market_asks = Pubkey::new_from_array(m_data[320..352].try_into()?);
     let market_coin_vault = Pubkey::new_from_array(m_data[160..192].try_into()?);
     let market_pc_vault = Pubkey::new_from_array(m_data[192..224].try_into()?);
-    let market_vault_signer = Pubkey::new_from_array(m_data[224..256].try_into()?);
 
     println!("   Market Event Q: {}", market_event_q);
     println!("   Market Bids:    {}", market_bids);

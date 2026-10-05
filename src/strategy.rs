@@ -32,6 +32,52 @@ impl Default for StrategyConfig {
 }
 
 impl StrategyConfig {
+    /// Overrides defaults from `MIN_TRADE_SOL`, `MAX_TRADE_SOL`, `TIP_LAMPORTS`,
+    /// `TX_FEE_LAMPORTS` and `MIN_NET_PROFIT_LAMPORTS`.
+    pub fn from_env() -> anyhow::Result<Self> {
+        Self::from_lookup(|k| std::env::var(k).ok())
+    }
+
+    pub fn from_lookup(get: impl Fn(&str) -> Option<String>) -> anyhow::Result<Self> {
+        fn parse<T: std::str::FromStr>(
+            get: &impl Fn(&str) -> Option<String>,
+            key: &str,
+        ) -> anyhow::Result<Option<T>> {
+            get(key)
+                .map(|v| {
+                    v.trim()
+                        .parse::<T>()
+                        .map_err(|_| anyhow::anyhow!("invalid value for {key}: {v:?}"))
+                })
+                .transpose()
+        }
+        let sol_to_lamports = |sol: f64| (sol * 1e9).round() as u64;
+        let mut cfg = Self::default();
+        if let Some(v) = parse::<f64>(&get, "MIN_TRADE_SOL")? {
+            cfg.min_trade_lamports = sol_to_lamports(v);
+        }
+        if let Some(v) = parse::<f64>(&get, "MAX_TRADE_SOL")? {
+            cfg.max_trade_lamports = sol_to_lamports(v);
+        }
+        if let Some(v) = parse(&get, "TIP_LAMPORTS")? {
+            cfg.tip_lamports = v;
+        }
+        if let Some(v) = parse(&get, "TX_FEE_LAMPORTS")? {
+            cfg.tx_fee_lamports = v;
+        }
+        if let Some(v) = parse(&get, "MIN_NET_PROFIT_LAMPORTS")? {
+            cfg.min_net_profit_lamports = v;
+        }
+        if cfg.min_trade_lamports == 0 || cfg.min_trade_lamports > cfg.max_trade_lamports {
+            anyhow::bail!(
+                "trade size bounds invalid: min {} max {}",
+                cfg.min_trade_lamports,
+                cfg.max_trade_lamports
+            );
+        }
+        Ok(cfg)
+    }
+
     pub fn fixed_cost(&self) -> u64 {
         self.tip_lamports + self.tx_fee_lamports
     }
@@ -146,6 +192,45 @@ mod tests {
         let price = (sqrt / 18_446_744_073_709_551_616.0).powi(2);
         st.orca_tick_index = (price.ln() / 1.0001f64.ln()).floor() as i32;
         st
+    }
+
+    fn lookup(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<String> {
+        move |k| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.to_string())
+        }
+    }
+
+    #[test]
+    fn config_defaults_without_env() {
+        let cfg = StrategyConfig::from_lookup(lookup(&[])).unwrap();
+        assert_eq!(
+            cfg.max_trade_lamports,
+            StrategyConfig::default().max_trade_lamports
+        );
+    }
+
+    #[test]
+    fn config_reads_overrides() {
+        let cfg = StrategyConfig::from_lookup(lookup(&[
+            ("MAX_TRADE_SOL", "2.5"),
+            ("TIP_LAMPORTS", "777"),
+        ]))
+        .unwrap();
+        assert_eq!(cfg.max_trade_lamports, 2_500_000_000);
+        assert_eq!(cfg.tip_lamports, 777);
+    }
+
+    #[test]
+    fn config_rejects_garbage_and_bad_bounds() {
+        assert!(StrategyConfig::from_lookup(lookup(&[("TIP_LAMPORTS", "lots")])).is_err());
+        assert!(
+            StrategyConfig::from_lookup(lookup(&[("MIN_TRADE_SOL", "5"), ("MAX_TRADE_SOL", "1")]))
+                .is_err()
+        );
+        assert!(StrategyConfig::from_lookup(lookup(&[("MIN_TRADE_SOL", "0")])).is_err());
     }
 
     #[test]

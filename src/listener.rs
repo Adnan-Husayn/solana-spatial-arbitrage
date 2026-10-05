@@ -20,8 +20,8 @@ pub async fn run(ws_url: String, state: SharedState) {
     let mut backoff = Duration::from_secs(1);
     loop {
         match run_once(&ws_url, &state).await {
-            Ok(()) => eprintln!("listener: stream ended, reconnecting"),
-            Err(e) => eprintln!("listener: {e:#}, reconnecting in {backoff:?}"),
+            Ok(()) => tracing::warn!("listener: stream ended, reconnecting"),
+            Err(e) => tracing::warn!("listener: {e:#}, reconnecting in {backoff:?}"),
         }
         tokio::time::sleep(backoff).await;
         backoff = (backoff * 2).min(Duration::from_secs(30));
@@ -55,7 +55,7 @@ async fn run_once(ws_url: &str, state: &SharedState) -> Result<()> {
             continue;
         };
         if let Err(e) = apply(feed, &data, state) {
-            eprintln!("listener: bad {feed:?} update: {e:#}");
+            tracing::warn!("listener: bad {feed:?} update: {e:#}");
         }
     }
     Err(anyhow!("subscription closed"))

@@ -2,7 +2,6 @@ use rand::seq::SliceRandom;
 use reqwest::Client;
 use serde_json::json;
 use solana_sdk::{
-    hash::Hash,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
     system_instruction,
@@ -26,6 +25,12 @@ pub const TIP_ACCOUNTS: [&str; 8] = [
 
 pub struct JitoClient {
     client: Client,
+}
+
+impl Default for JitoClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl JitoClient {
@@ -65,7 +70,7 @@ impl JitoClient {
             ]
         });
 
-        println!("Sending Bundle to Jito...");
+        tracing::info!("sending bundle to Jito");
 
         let response = self
             .client
@@ -79,14 +84,14 @@ impl JitoClient {
 
         if let Some(result) = resp_json.get("result") {
             let bundle_id = result.as_str().unwrap_or("Unknown").to_string();
-            println!("Bundle Sent! ID: {}", bundle_id);
+            tracing::info!("bundle sent: {bundle_id}");
             Ok(bundle_id)
         } else {
             let err = resp_json
                 .get("error")
                 .map(|e| e.to_string())
                 .unwrap_or("Unknown Error".to_string());
-            println!("Jito Error: {}", err);
+            tracing::error!("jito error: {err}");
             Err(anyhow::anyhow!("Jito Error: {}", err))
         }
     }

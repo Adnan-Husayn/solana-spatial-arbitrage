@@ -42,15 +42,22 @@ impl fmt::Display for Metrics {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
     let (rpc_url, payer) = load_env_variables()?;
     let ws = ws_url(&rpc_url);
     let rpc = RpcClient::new(rpc_url);
 
-    println!("Bot Active (SIMULATION MODE)");
-    println!("   Wallet: {}", payer.pubkey());
+    tracing::info!("bot active (simulation mode)");
+    tracing::info!("wallet: {}", payer.pubkey());
 
     let keys = executor::fetch_market_keys(&rpc).await?;
-    println!("   OpenBook market keys fetched");
+    tracing::info!("openbook market keys fetched");
 
     let shared = state::new_shared();
 
@@ -66,7 +73,7 @@ async fn main() -> Result<()> {
         state::set_ray_sol(&shared, TokenAccount::unpack(&s.data)?.amount)?;
         state::set_ray_usdc(&shared, TokenAccount::unpack(&u.data)?.amount)?;
         state::set_orca(&shared, &o.data)?;
-        println!("   Bootstrap complete");
+        tracing::info!("bootstrap complete");
     }
 
     tokio::spawn(listener::run(ws.clone(), shared.clone()));
@@ -77,9 +84,10 @@ async fn main() -> Result<()> {
         commitment: Some(CommitmentConfig::processed()),
     };
     let (mut log_stream, _unsub) = logs_client.logs_subscribe(filter, cfg).await?;
-    println!("Listening for Raydium pool activity...");
+    tracing::info!("listening for raydium pool activity");
 
-    let cfg = strategy::StrategyConfig::default();
+    let cfg = strategy::StrategyConfig::from_env()?;
+    tracing::info!("strategy config: {cfg:?}");
     let jito = JitoClient::new();
     let mut m = Metrics::default();
     let mut last_slot = 0u64;
@@ -98,23 +106,24 @@ async fn main() -> Result<()> {
         if !snap.is_ready() || snap.is_stale(MAX_STATE_AGE_SECS) {
             continue;
         }
-        if m.events % 50 == 1 {
-            if let Some(s) =
+        if m.events % 50 == 1
+            && let Some(s) =
                 pricing::spread_from_state(snap.ray_sol, snap.ray_usdc, snap.orca_sqrt_price)
-            {
-                println!(
-                    "ray {:.4}  orca {:.4}  spread {:.2} bps | {m}",
-                    s.ray_price, s.orca_price, s.bps
-                );
-            }
+        {
+            tracing::info!(
+                "ray {:.4}  orca {:.4}  spread {:.2} bps | {m}",
+                s.ray_price,
+                s.orca_price,
+                s.bps
+            );
         }
 
         let Some(o) = strategy::evaluate(&snap, &cfg) else {
             continue;
         };
         m.opportunities += 1;
-        println!(
-            "OPPORTUNITY slot {slot} {:?}: in {:.4} SOL, net {:.6} SOL",
+        tracing::info!(
+            "opportunity slot {slot} {:?}: in {:.4} SOL, net {:.6} SOL",
             o.direction,
             o.amount_in as f64 / 1e9,
             o.net_profit as f64 / 1e9
@@ -135,10 +144,10 @@ async fn main() -> Result<()> {
         match built {
             Ok((None, _)) => {
                 m.sim_ok += 1;
-                println!("   simulation OK (live sending is disabled)");
+                tracing::info!("simulation OK (live sending is disabled)");
             }
-            Ok((Some(err), _)) => println!("   simulation rejected: {err}"),
-            Err(e) => println!("   simulation failed: {e:#}"),
+            Ok((Some(err), _)) => tracing::info!("simulation rejected: {err}"),
+            Err(e) => tracing::warn!("simulation failed: {e:#}"),
         }
     }
     Ok(())

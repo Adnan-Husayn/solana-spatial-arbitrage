@@ -1,9 +1,7 @@
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    system_program,
 };
-use std::mem::size_of;
 use std::str::FromStr;
 
 const RAYDIUM_V4_PROGRAM_ID: &str = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8";
@@ -29,6 +27,8 @@ pub fn get_associated_token_address(
     address
 }
 
+/// Mirrors the on-chain account list one to one, hence the long signature.
+#[allow(clippy::too_many_arguments)]
 pub fn build_raydium_swap_instruction(
     pool_id: Pubkey,
     amm_authority: Pubkey,
