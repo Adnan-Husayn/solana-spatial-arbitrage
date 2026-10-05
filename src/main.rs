@@ -6,7 +6,7 @@ use solana_client::{
 };
 use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack, pubkey::Pubkey, signature::Signer};
 use spatial_arbitrage_bot::{
-    config::*, executor, listener, load_env_variables, pricing, state, ws_url,
+    config::*, executor, listener, load_env_variables, pricing, state, strategy, ws_url,
 };
 use spl_token::state::Account as TokenAccount;
 use std::str::FromStr;
@@ -48,6 +48,7 @@ async fn main() -> Result<()> {
     let (mut log_stream, _unsub) = logs_client.logs_subscribe(filter, cfg).await?;
     println!("Listening for Raydium pool activity...");
 
+    let cfg = strategy::StrategyConfig::default();
     let mut simulated = false;
     while log_stream.next().await.is_some() {
         let snap = state::snapshot(&shared)?;
@@ -61,7 +62,16 @@ async fn main() -> Result<()> {
             );
         }
 
-        // Phase 4 replaces this one-shot simulation with the real strategy loop.
+        if let Some(o) = strategy::evaluate(&snap, &cfg) {
+            println!(
+                "OPPORTUNITY {:?}: in {:.4} SOL, net {:.6} SOL",
+                o.direction,
+                o.amount_in as f64 / 1e9,
+                o.net_profit as f64 / 1e9
+            );
+        }
+
+        // The combined transaction replaces this one-shot simulation with the real strategy loop.
         if !simulated {
             simulated = true;
             match executor::simulate_raydium_swap(&rpc, &payer, &keys, 10_000_000).await {

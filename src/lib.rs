@@ -9,7 +9,9 @@ pub mod instructions;
 pub mod jito;
 pub mod listener;
 pub mod math;
+pub mod orca;
 pub mod pricing;
+pub mod strategy;
 pub mod raydium;
 pub mod state;
 

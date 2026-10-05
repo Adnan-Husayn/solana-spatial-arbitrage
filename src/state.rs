@@ -9,6 +9,10 @@ pub struct MarketState {
     pub ray_usdc: u64,
     pub orca_sqrt_price: u128,
     pub orca_tick_index: i32,
+    pub orca_liquidity: u128,
+    pub orca_tick_spacing: u16,
+    /// Hundredths of a basis point (400 = 0.04%).
+    pub orca_fee_rate: u16,
     pub last_update: u64,
 }
 
@@ -28,21 +32,37 @@ impl MarketState {
     }
 }
 
-/// Reads (sqrt_price Q64.64, current tick index) from raw Whirlpool account data.
-pub fn parse_whirlpool(data: &[u8]) -> Result<(u128, i32)> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Whirlpool {
+    pub sqrt_price: u128,
+    pub tick_index: i32,
+    pub liquidity: u128,
+    pub tick_spacing: u16,
+    pub fee_rate: u16,
+}
+
+/// Parses the fields we need from raw Whirlpool account data.
+pub fn parse_whirlpool(data: &[u8]) -> Result<Whirlpool> {
     if data.len() < ORCA_MIN_LEN {
         return Err(anyhow!("whirlpool account too short: {}", data.len()));
     }
-    let sqrt = u128::from_le_bytes(data[ORCA_SQRT_PRICE_OFFSET..ORCA_SQRT_PRICE_OFFSET + 16].try_into()?);
-    let tick = i32::from_le_bytes(data[ORCA_TICK_INDEX_OFFSET..ORCA_TICK_INDEX_OFFSET + 4].try_into()?);
-    Ok((sqrt, tick))
+    Ok(Whirlpool {
+        sqrt_price: u128::from_le_bytes(data[ORCA_SQRT_PRICE_OFFSET..ORCA_SQRT_PRICE_OFFSET + 16].try_into()?),
+        tick_index: i32::from_le_bytes(data[ORCA_TICK_INDEX_OFFSET..ORCA_TICK_INDEX_OFFSET + 4].try_into()?),
+        liquidity: u128::from_le_bytes(data[ORCA_LIQUIDITY_OFFSET..ORCA_LIQUIDITY_OFFSET + 16].try_into()?),
+        tick_spacing: u16::from_le_bytes(data[ORCA_TICK_SPACING_OFFSET..ORCA_TICK_SPACING_OFFSET + 2].try_into()?),
+        fee_rate: u16::from_le_bytes(data[ORCA_FEE_RATE_OFFSET..ORCA_FEE_RATE_OFFSET + 2].try_into()?),
+    })
 }
 
 pub fn set_orca(state: &SharedState, data: &[u8]) -> Result<()> {
-    let (sqrt, tick) = parse_whirlpool(data)?;
+    let p = parse_whirlpool(data)?;
     let mut w = state.write().map_err(|_| anyhow!("state lock poisoned"))?;
-    w.orca_sqrt_price = sqrt;
-    w.orca_tick_index = tick;
+    w.orca_sqrt_price = p.sqrt_price;
+    w.orca_tick_index = p.tick_index;
+    w.orca_liquidity = p.liquidity;
+    w.orca_tick_spacing = p.tick_spacing;
+    w.orca_fee_rate = p.fee_rate;
     w.last_update = now_secs();
     Ok(())
 }
@@ -72,6 +92,9 @@ mod tests {
 
     fn fake_whirlpool(sqrt: u128, tick: i32) -> Vec<u8> {
         let mut d = vec![0u8; 653];
+        d[ORCA_LIQUIDITY_OFFSET..ORCA_LIQUIDITY_OFFSET + 16].copy_from_slice(&1_090_735_051_258_027u128.to_le_bytes());
+        d[ORCA_TICK_SPACING_OFFSET..ORCA_TICK_SPACING_OFFSET + 2].copy_from_slice(&4u16.to_le_bytes());
+        d[ORCA_FEE_RATE_OFFSET..ORCA_FEE_RATE_OFFSET + 2].copy_from_slice(&400u16.to_le_bytes());
         d[ORCA_SQRT_PRICE_OFFSET..ORCA_SQRT_PRICE_OFFSET + 16].copy_from_slice(&sqrt.to_le_bytes());
         d[ORCA_TICK_INDEX_OFFSET..ORCA_TICK_INDEX_OFFSET + 4].copy_from_slice(&tick.to_le_bytes());
         d
@@ -79,9 +102,12 @@ mod tests {
 
     #[test]
     fn parses_whirlpool_fields() {
-        let (s, t) = parse_whirlpool(&fake_whirlpool(6_429_939_587_537_051_150, -21080)).unwrap();
-        assert_eq!(s, 6_429_939_587_537_051_150);
-        assert_eq!(t, -21080);
+        let p = parse_whirlpool(&fake_whirlpool(6_429_939_587_537_051_150, -21080)).unwrap();
+        assert_eq!(p.sqrt_price, 6_429_939_587_537_051_150);
+        assert_eq!(p.tick_index, -21080);
+        assert_eq!(p.liquidity, 1_090_735_051_258_027);
+        assert_eq!(p.tick_spacing, 4);
+        assert_eq!(p.fee_rate, 400);
     }
 
     #[test]
