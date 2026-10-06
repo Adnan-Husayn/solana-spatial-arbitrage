@@ -2,6 +2,8 @@
 
 A Rust bot that watches the SOL/USDC pair on **Raydium V4** (constant-product AMM) and **Orca Whirlpools** (concentrated liquidity), works out whether a round trip between them is profitable after fees, and builds the atomic two-swap transaction to capture it.
 
+**Live monitor:** <https://adnan-husayn.github.io/solana-spatial-arbitrage/>
+
 It runs in **simulation mode by default**. Live sending through Jito exists, is off unless you turn it on, and has not been run with real funds. See [Status](#status).
 
 ## How it works
@@ -33,7 +35,7 @@ Known limits:
 
 ## Live monitor
 
-`docs/` holds a static, read-only web page that shows the live spread, the fee hurdle and the best trade in each direction. It polls public Solana RPCs from the browser and runs a JavaScript port of the pricing and profit model. It never touches a wallet.
+It is published at <https://adnan-husayn.github.io/solana-spatial-arbitrage/>. `docs/` holds the static, read-only web page that shows the live spread, the fee hurdle and the best trade in each direction. It polls public Solana RPCs from the browser and runs a JavaScript port of the pricing and profit model. It never touches a wallet.
 
 ```bash
 python3 -m http.server 8000 --directory docs
@@ -149,6 +151,10 @@ Source layout:
 | `executor` | Transaction building, simulation, wallet balances |
 | `risk` | Live-trading limits and kill switch |
 | `jito` | Bundle submission and status polling |
+
+## License
+
+[MIT](LICENSE)
 
 ## Disclaimer
 
