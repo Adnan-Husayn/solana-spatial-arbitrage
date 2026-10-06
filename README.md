@@ -31,6 +31,20 @@ Known limits:
 - Raydium prices use vault balances, which differ slightly from the pool's true reserves.
 - This pair is heavily contested. On public WebSockets, expect to lose most races, and expect most of the time to show no profitable opportunity. At the time of writing, the spread was around 10 bps against roughly 29 bps of combined pool fees.
 
+## Live monitor
+
+`docs/` holds a static, read-only web page that shows the live spread, the fee hurdle and the best trade in each direction. It polls public Solana RPCs from the browser and runs a JavaScript port of the pricing and profit model. It never touches a wallet.
+
+```bash
+python3 -m http.server 8000 --directory docs
+```
+
+Then open <http://localhost:8000>. The port is checked against output from the Rust implementation:
+
+```bash
+node --test tests/web/engine.test.mjs
+```
+
 ## Getting started
 
 ### Prerequisites
@@ -110,7 +124,7 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-CI runs the same three checks.
+CI runs the same three checks, plus the JavaScript engine tests.
 
 Helper binaries in `src/bin`:
 

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solana Spatial Arbitrage Monitor</title>
+<meta name="description" content="Live SOL/USDC spread between Raydium V4 and Orca Whirlpools, with the profit model from the Rust bot running in your browser.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="page">
+
+  <header class="masthead">
+    <div>
+      <h1>Solana Spatial Arbitrage Monitor</h1>
+      <p class="lede">SOL/USDC on Raydium V4 against Orca Whirlpools. Read-only: this page reads public chain data and never touches a wallet.</p>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite">
+      <span class="status-dot" id="status-dot" aria-hidden="true"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </header>
+
+  <section class="hero card" aria-labelledby="hero-label">
+    <div class="hero-main">
+      <p class="label" id="hero-label">Gross spread between venues</p>
+      <p class="hero-figure"><span id="hero-bps">–</span><span class="hero-unit"> bps</span></p>
+      <p class="verdict" id="verdict"><span class="verdict-icon" id="verdict-icon" aria-hidden="true"></span><span id="verdict-text">Waiting for data</span></p>
+    </div>
+    <div class="hero-meter">
+      <p class="label">Share of the fee hurdle covered</p>
+      <div class="meter" role="meter" id="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Share of the fee hurdle covered by the spread">
+        <div class="meter-fill" id="meter-fill"></div>
+      </div>
+      <p class="meter-caption" id="meter-caption">A round trip pays both pools' fees. The spread has to exceed them before any trade can profit.</p>
+    </div>
+  </section>
+
+  <section class="kpis" aria-label="Current values">
+    <div class="card tile"><p class="label">Raydium price</p><p class="value" id="kpi-ray">–</p><p class="sub">USDC per SOL, from vault balances</p></div>
+    <div class="card tile"><p class="label">Orca price</p><p class="value" id="kpi-orca">–</p><p class="sub">USDC per SOL, from the pool's sqrt price</p></div>
+    <div class="card tile"><p class="label">Fee hurdle</p><p class="value" id="kpi-hurdle">–</p><p class="sub" id="kpi-hurdle-sub">Raydium 0.25% plus Orca's fee tier</p></div>
+    <div class="card tile"><p class="label">Best net result per trade</p><p class="value" id="kpi-net">–</p><p class="sub" id="kpi-net-sub">After pool fees, tip and transaction fee</p></div>
+  </section>
+
+  <section class="card chart-card" aria-labelledby="chart-title">
+    <div class="card-head">
+      <h2 id="chart-title">Gross spread over time</h2>
+      <p class="sub">Basis points, since you opened this page. The horizontal line is the fee hurdle.</p>
+    </div>
+    <div class="chart-wrap" id="chart-wrap">
+      <svg id="chart" role="img" tabindex="0" aria-labelledby="chart-title chart-desc"></svg>
+      <p id="chart-desc" class="visually-hidden">Line chart of the gross spread in basis points over time, compared with the fee hurdle. Use the left and right arrow keys to read individual samples. A data table follows.</p>
+      <div class="tooltip" id="tooltip" hidden></div>
+      <p class="chart-empty" id="chart-empty">Collecting samples…</p>
+    </div>
+    <details class="table-view">
+      <summary>Show the data as a table</summary>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">Time</th><th scope="col">Slot</th><th scope="col">Raydium</th><th scope="col">Orca</th><th scope="col">Spread (bps)</th></tr></thead>
+          <tbody id="samples-body"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section class="card" aria-labelledby="trades-title">
+    <div class="card-head">
+      <h2 id="trades-title">Best trade in each direction</h2>
+      <p class="sub">The size that maximizes profit between 0.01 and 50 SOL, using the same model as the bot. Every cycle starts and ends in SOL.</p>
+    </div>
+    <div class="table-scroll">
+      <table class="trades">
+        <thead><tr><th scope="col">Route</th><th scope="col">Size (SOL)</th><th scope="col">Gross (SOL)</th><th scope="col">Costs (SOL)</th><th scope="col">Net (SOL)</th><th scope="col">Result</th></tr></thead>
+        <tbody id="trades-body"><tr><td colspan="6" class="muted">Waiting for data</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card notes" aria-labelledby="notes-title">
+    <h2 id="notes-title">How to read this</h2>
+    <ul>
+      <li><strong>Spread</strong> is the gap between the two spot prices. It is gross: no fees are taken out.</li>
+      <li><strong>Fee hurdle</strong> is what a round trip pays the two pools. A spread below it cannot be profitable at any size.</li>
+      <li><strong>Net result</strong> also subtracts a Jito tip of 10,000 lamports and a 25,000 lamport transaction fee, and accounts for price impact.</li>
+      <li>Orca quotes are only trusted inside the pool's current tick range, so large trades are not estimated.</li>
+      <li>Raydium's price uses vault balances, which sit slightly off the pool's true reserves.</li>
+      <li>Data comes from a public RPC by polling every few seconds. A real bot sees updates sooner and still loses most races on this pair.</li>
+    </ul>
+    <details class="settings">
+      <summary>RPC endpoint</summary>
+      <p class="sub">Leave empty to use the built-in public endpoints. A custom URL is stored only in this browser.</p>
+      <form id="rpc-form">
+        <label class="visually-hidden" for="rpc-input">Custom RPC URL</label>
+        <input id="rpc-input" type="url" inputmode="url" placeholder="https://your-rpc.example" autocomplete="off" spellcheck="false">
+        <button type="submit">Use</button>
+        <button type="button" id="rpc-reset">Reset</button>
+      </form>
+    </details>
+  </section>
+
+  <footer class="foot">
+    <p>For education only. Nothing here is financial advice, and a shown opportunity is a model estimate, not a guaranteed trade.</p>
+    <p><a href="https://github.com/Adnan-Husayn/solana-spatial-arbitrage">Source on GitHub</a></p>
+  </footer>
+
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
