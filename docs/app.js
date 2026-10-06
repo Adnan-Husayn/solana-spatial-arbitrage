@@ -1,6 +1,6 @@
 import {
-  ADDRESSES, DEFAULT_CONFIG, Direction, bestAttempts, feeHurdleBps, isReady, orcaPrice, parseWhirlpool,
-  raydiumPrice, spread, tokenAmount,
+  ADDRESSES, DEFAULT_CONFIG, Direction, bestAttempts, feeHurdleBps, firstLegUsdc, isReady, orcaPrice,
+  parseWhirlpool, raydiumPrice, spread, tokenAmount,
 } from "./engine.js";
 
 // Public endpoints that allow browser (CORS) requests. Tried in order; rotated on failure.
@@ -115,7 +115,9 @@ async function poll() {
           bps: s.bps,
           direction: s.direction,
           hurdle: feeHurdleBps(state),
-          attempts: bestAttempts(state, DEFAULT_CONFIG),
+          attempts: bestAttempts(state, DEFAULT_CONFIG).map((a) =>
+            a.quotable ? { ...a, midUsdc: firstLegUsdc(state, a.direction, a.amountIn) } : a,
+          ),
         });
         if (samples.length > MAX_SAMPLES) samples.shift();
       }
@@ -140,9 +142,11 @@ const fmtSignedSol = (lamports, digits = 6) => {
   const sign = lamports > 0 ? "+" : lamports < 0 ? "−" : "";
   return `${sign}${fmtSol(Math.abs(lamports), digits)}`;
 };
-const ROUTE_LABEL = {
-  [Direction.BuyRaydiumSellOrca]: "Sell on Orca, buy back on Raydium",
-  [Direction.BuyOrcaSellRaydium]: "Sell on Raydium, buy back on Orca",
+const fmtUsdc = (raw) =>
+  (raw / 1e6).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ROUTES = {
+  [Direction.BuyRaydiumSellOrca]: { title: "Sell on Orca, buy back on Raydium", first: "Orca", second: "Raydium" },
+  [Direction.BuyOrcaSellRaydium]: { title: "Sell on Raydium, buy back on Orca", first: "Raydium", second: "Orca" },
 };
 
 function hostOf(url) {
@@ -156,23 +160,36 @@ function hostOf(url) {
 // ---------- rendering ----------
 
 function renderStatus() {
-  const el = $("status");
+  const pill = $("status");
   const text = $("status-text");
   const last = samples[samples.length - 1];
   const age = lastSuccess ? Date.now() - lastSuccess : Infinity;
   if (document.hidden) {
-    el.dataset.state = "idle";
+    pill.dataset.state = "idle";
     text.textContent = "Paused while this tab is in the background";
   } else if (!lastSuccess) {
-    el.dataset.state = lastError ? "error" : "idle";
+    pill.dataset.state = lastError ? "error" : "idle";
     text.textContent = lastError ? `Can't reach an RPC (${lastError}). Retrying…` : "Connecting…";
   } else if (age > STALE_MS) {
-    el.dataset.state = "stale";
+    pill.dataset.state = "stale";
     text.textContent = `Stale · last update ${Math.round(age / 1000)}s ago · retrying`;
   } else {
-    el.dataset.state = "live";
+    pill.dataset.state = "live";
     text.textContent = `Live · slot ${last ? last.slot.toLocaleString("en-US") : "–"} · ${hostOf(endpoints[endpointIndex])}`;
   }
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function setTag(id, text) {
+  const tag = $(id);
+  tag.hidden = !text;
+  tag.textContent = text || "";
 }
 
 function renderHeadline() {
@@ -180,41 +197,103 @@ function renderHeadline() {
   if (!last) return;
 
   $("hero-bps").textContent = fmtBps(last.bps);
-  $("kpi-ray").textContent = fmtPrice(last.ray);
-  $("kpi-orca").textContent = fmtPrice(last.orca);
-  $("kpi-hurdle").textContent = `${fmtBps(last.hurdle)} bps`;
+  $("hero-figure").dataset.empty = "false";
+  for (const id of ["gauge-mark", "gauge-zone", "gauge-mark-label"]) $(id).hidden = false;
+  $("price-ray").textContent = fmtPrice(last.ray);
+  $("price-orca").textContent = fmtPrice(last.orca);
+  const orcaHigher = last.orca >= last.ray;
+  setTag("tag-orca", orcaHigher ? "Higher" : "Lower");
+  setTag("tag-ray", orcaHigher ? "Lower" : "Higher");
 
+  // Gauge: spread against the fee hurdle, on a scale that always leaves room past break-even.
+  const scaleMax = Math.max(last.hurdle * 1.5, last.bps * 1.15);
+  const markPct = (last.hurdle / scaleMax) * 100;
+  $("gauge-fill").style.width = `${(last.bps / scaleMax) * 100}%`;
+  $("gauge-mark").style.left = `${markPct}%`;
+  $("gauge-zone").style.left = `${markPct}%`;
+  const markLabel = $("gauge-mark-label");
+  markLabel.style.left = `${markPct}%`;
+  markLabel.textContent = `Break-even ${fmtBps(last.hurdle)}`;
   const share = last.hurdle > 0 ? last.bps / last.hurdle : 0;
-  const pct = Math.round(share * 100);
-  const fill = $("meter-fill");
-  fill.style.width = `${Math.min(share, 1) * 100}%`;
-  fill.dataset.full = String(share >= 1);
-  $("meter").setAttribute("aria-valuenow", String(Math.min(pct, 100)));
-  $("meter-caption").textContent =
-    share >= 1
-      ? `The spread is ${pct}% of the ${fmtBps(last.hurdle)} bps fee hurdle, so pool fees are covered. Price impact and costs still apply.`
-      : `The spread covers ${pct}% of the ${fmtBps(last.hurdle)} bps fee hurdle. It has to pass 100% before any size can profit.`;
+  $("gauge").setAttribute("aria-valuenow", String(Math.min(Math.round(share * 100), 100)));
+  const gap = last.hurdle - last.bps;
+  $("gauge-value").textContent = gap > 0 ? `${fmtBps(gap)} bps short` : `${fmtBps(-gap)} bps past`;
+  $("gauge-caption").textContent =
+    gap > 0
+      ? `The spread covers ${Math.round(share * 100)}% of the pool fees a round trip pays. Below break-even, no trade size can profit.`
+      : "The spread now covers the pool fees. Price impact, the tip and the transaction fee still decide whether a trade profits.";
 
-  const quotable = last.attempts.filter((a) => a.quotable);
-  const best = quotable.reduce((m, a) => (m === null || a.netProfit > m.netProfit ? a : m), null);
+  const best = last.attempts
+    .filter((a) => a.quotable)
+    .reduce((m, a) => (m === null || a.netProfit > m.netProfit ? a : m), null);
   const verdict = $("verdict");
   if (best && best.profitable) {
     verdict.dataset.state = "good";
     $("verdict-icon").textContent = "✓";
-    $("verdict-text").textContent = `Profitable in the model: ${fmtSignedSol(best.netProfit)} SOL net`;
+    $("verdict-text").textContent = `Profitable in the model: ${fmtSignedSol(best.netProfit)} SOL`;
   } else {
     verdict.dataset.state = "none";
     $("verdict-icon").textContent = "–";
     $("verdict-text").textContent = "No profitable trade right now";
   }
 
-  if (best) {
-    $("kpi-net").textContent = `${fmtSignedSol(best.netProfit)} SOL`;
-    $("kpi-net-sub").textContent = `${ROUTE_LABEL[best.direction]}, ${fmtSol(best.amountIn)} SOL in`;
-  } else {
-    $("kpi-net").textContent = "–";
-    $("kpi-net-sub").textContent = "No route can be quoted right now";
+  const lo = Math.min(...samples.map((s) => s.bps));
+  const hi = Math.max(...samples.map((s) => s.bps));
+  $("range").textContent = `${fmtBps(lo)} – ${fmtBps(hi)} bps`;
+}
+
+function ledgerRow(label, value, className) {
+  const row = el("div", className);
+  row.append(el("dt", null, label), el("dd", null, value));
+  return row;
+}
+
+function renderRoute(a) {
+  const route = ROUTES[a.direction];
+  const card = el("article", "panel route");
+  const head = el("div", "route-head");
+  head.append(el("h3", "route-title", route.title));
+  card.append(head);
+
+  if (!a.quotable) {
+    card.append(el("p", "hint", "This route cannot be quoted inside Orca's current tick range."));
+    return card;
   }
+
+  const result = el("span", "result");
+  result.dataset.state = a.profitable ? "good" : "none";
+  const icon = el("span", "result-icon", a.profitable ? "✓" : "–");
+  icon.setAttribute("aria-hidden", "true");
+  result.append(icon, el("span", null, a.profitable ? "Profitable" : "Loses money"));
+  head.append(result);
+
+  const flow = el("ol", "flow");
+  const step = (label, amount) => {
+    const li = el("li");
+    li.append(el("span", "flow-step", label), el("span", "flow-amount", amount));
+    return li;
+  };
+  flow.append(
+    step("Start with", `${fmtSol(a.amountIn)} SOL`),
+    step(`Sell on ${route.first}`, a.midUsdc === null ? "–" : `${fmtUsdc(a.midUsdc)} USDC`),
+    step(`Buy back on ${route.second}`, `${fmtSol(a.expectedOut, 6)} SOL`),
+  );
+  card.append(flow);
+
+  const ledger = el("dl", "ledger");
+  ledger.append(
+    ledgerRow("Gross", `${fmtSignedSol(a.grossProfit)} SOL`),
+    ledgerRow("Tip and transaction fee", `−${fmtSol(a.cost, 6)} SOL`),
+    ledgerRow("Net", `${fmtSignedSol(a.netProfit)} SOL`, "total"),
+  );
+  card.append(ledger);
+  return card;
+}
+
+function renderRoutes() {
+  const last = samples[samples.length - 1];
+  if (!last) return;
+  $("routes").replaceChildren(...last.attempts.map(renderRoute));
 }
 
 function cell(text, className) {
@@ -222,45 +301,6 @@ function cell(text, className) {
   td.textContent = text;
   if (className) td.className = className;
   return td;
-}
-
-function renderTrades() {
-  const last = samples[samples.length - 1];
-  if (!last) return;
-  const body = $("trades-body");
-  body.replaceChildren(
-    ...last.attempts.map((a) => {
-      const tr = document.createElement("tr");
-      tr.append(cell(ROUTE_LABEL[a.direction]));
-      if (!a.quotable) {
-        const td = cell("Cannot be quoted inside the current Orca tick range", "muted");
-        td.colSpan = 5;
-        td.style.textAlign = "left";
-        tr.append(td);
-        return tr;
-      }
-      tr.append(
-        cell(fmtSol(a.amountIn)),
-        cell(fmtSignedSol(a.grossProfit)),
-        cell(fmtSol(a.cost, 6)),
-        cell(fmtSignedSol(a.netProfit)),
-      );
-      const td = document.createElement("td");
-      const wrap = document.createElement("span");
-      wrap.className = "result";
-      wrap.dataset.state = a.profitable ? "good" : "none";
-      const icon = document.createElement("span");
-      icon.className = "result-icon";
-      icon.setAttribute("aria-hidden", "true");
-      icon.textContent = a.profitable ? "✓" : "–";
-      const label = document.createElement("span");
-      label.textContent = a.profitable ? "Profitable" : "Loses money";
-      wrap.append(icon, label);
-      td.append(wrap);
-      tr.append(td);
-      return tr;
-    }),
-  );
 }
 
 function renderSamplesTable() {
@@ -283,10 +323,10 @@ function renderSamplesTable() {
 // ---------- chart ----------
 
 function svg(name, attrs = {}, text) {
-  const el = document.createElementNS(SVG_NS, name);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-  if (text !== undefined) el.textContent = text;
-  return el;
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (text !== undefined) node.textContent = text;
+  return node;
 }
 
 function niceCeil(v) {
@@ -299,13 +339,13 @@ function niceCeil(v) {
 let chartGeom = null;
 
 function renderChart() {
-  const el = $("chart");
-  const width = el.clientWidth || 600;
-  const height = el.clientHeight || 280;
-  el.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  const chart = $("chart");
+  const width = chart.clientWidth || 600;
+  const height = chart.clientHeight || 300;
+  chart.setAttribute("viewBox", `0 0 ${width} ${height}`);
   $("chart-empty").hidden = samples.length > 0;
   if (samples.length === 0) {
-    el.replaceChildren();
+    chart.replaceChildren();
     chartGeom = null;
     return;
   }
@@ -333,15 +373,20 @@ function renderChart() {
   }
 
   // x ticks
-  for (let i = 0; i <= 3; i++) {
-    const t = tMin + ((tMax - tMin) / 3) * i;
-    const anchor = i === 0 ? "start" : i === 3 ? "end" : "middle";
+  const xTicks = pw < 420 ? 1 : 3; // just the ends on narrow screens, so labels never collide
+  for (let i = 0; i <= xTicks; i++) {
+    const t = tMin + ((tMax - tMin) / xTicks) * i;
+    const anchor = i === 0 ? "start" : i === xTicks ? "end" : "middle";
     nodes.push(svg("text", { x: x(t), y: m.top + ph + 18, "text-anchor": anchor }, fmtTime(t)));
   }
 
-  // fee hurdle reference line, labelled directly
+  // fee hurdle reference line, labelled directly; above it, pool fees are covered
+  nodes.unshift(svg("rect", { class: "zone", x: m.left, y: m.top, width: pw, height: Math.max(y(hurdle) - m.top, 0) }));
   nodes.push(svg("line", { class: "hurdle", x1: m.left, x2: m.left + pw, y1: y(hurdle), y2: y(hurdle) }));
-  nodes.push(svg("text", { class: "hurdle-label", x: m.left + 4, y: y(hurdle) - 6 }, `Fee hurdle ${fmtBps(hurdle)} bps`));
+  nodes.push(svg("text", { class: "hurdle-label", x: m.left + 6, y: y(hurdle) + 16 }, `Fee hurdle ${fmtBps(hurdle)} bps`));
+  if (y(hurdle) - m.top > 22) {
+    nodes.push(svg("text", { class: "zone-label", x: m.left + 6, y: y(hurdle) - 8 }, "Fees covered above this line"));
+  }
 
   // series
   const pts = samples.map((s) => [x(s.t), y(s.bps)]);
@@ -362,7 +407,7 @@ function renderChart() {
   nodes.push(svg("circle", { class: "dot", cx: ex, cy: ey, r: 5 }));
   nodes.push(svg("text", { class: "end-label", x: ex + 10, y: ey + 4 }, fmtBps(last.bps)));
 
-  el.replaceChildren(...nodes);
+  chart.replaceChildren(...nodes);
   chartGeom = { pts, m, pw, width };
   renderTooltip();
 }
@@ -432,7 +477,7 @@ function setHover(index) {
 function render() {
   renderStatus();
   renderHeadline();
-  renderTrades();
+  renderRoutes();
   renderSamplesTable();
   renderChart();
 }
