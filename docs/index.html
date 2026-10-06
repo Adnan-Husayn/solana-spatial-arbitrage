@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Spread</title>
+<meta name="description" content="Live SOL/USDC spread between Raydium V4 and Orca Whirlpools, with the profit model from the Rust bot running in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <span><b>The Spread</b> · SOL/USDC</span>
+    <span>Raydium V4 against Orca Whirlpools</span>
+    <span class="status" id="status" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Connecting…</span></span>
+  </header>
+
+  <main>
+    <section class="lead">
+      <div>
+        <h1 id="headline">Two pools disagree by <span class="num" id="hero-bps">–</span> basis points.</h1>
+        <p class="deck" id="deck">Reading the two pools…</p>
+      </div>
+      <aside class="rail" aria-label="Current figures">
+        <div class="fig"><p class="cap">Raydium V4</p><p class="val" id="price-ray">–</p><p class="note" id="note-ray">From vault balances</p></div>
+        <div class="fig"><p class="cap">Orca Whirlpool</p><p class="val" id="price-orca">–</p><p class="note" id="note-orca">From the sqrt price</p></div>
+        <div class="fig"><p class="cap">Fee hurdle</p><p class="val"><span id="hurdle">–</span> <span class="note">bps</span></p><p class="note" id="note-hurdle">Raydium plus Orca pool fees</p></div>
+        <div class="fig"><p class="cap">Covered</p><p class="val" id="covered">–</p><p class="note">Of the fees a round trip pays</p></div>
+      </aside>
+    </section>
+
+    <section class="board">
+      <div>
+        <div class="plate-head"><h2 id="chart-title">The spread since you opened this page</h2><p id="range">BASIS POINTS</p></div>
+        <div class="chart-wrap" id="chart-wrap">
+          <svg id="chart" role="img" tabindex="0" aria-labelledby="chart-title chart-desc"></svg>
+          <p id="chart-desc" class="visually-hidden">Line chart of the gross spread in basis points over time, compared with the fee hurdle. Use the left and right arrow keys to read individual samples. A data table is available below.</p>
+          <div class="tooltip" id="tooltip" hidden></div>
+          <p class="chart-empty" id="chart-empty">Collecting samples…</p>
+        </div>
+      </div>
+      <div>
+        <div class="plate-head"><h2 id="routes-title">Best trade each way</h2><p>NET, SOL</p></div>
+        <div class="routes" id="routes" aria-labelledby="routes-title">
+          <article class="route"><p class="parts">Waiting for data</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="essay" aria-label="How to read this">
+      <div><h2>Which side is dear</h2><p id="essay-dear">One venue usually prices SOL a little higher than the other. In principle you sell where it is dear and buy back where it is cheap.</p></div>
+      <div><h2>Why the hurdle matters</h2><p id="essay-hurdle">A round trip pays both pools their fees. Past that, a Jito tip, a transaction fee and price impact still have to be covered.</p></div>
+      <div><h2>Why it rarely opens</h2><p>This is one of the most watched pairs on Solana. Searchers with faster data close any gap long before a page polling a public endpoint could see it.</p></div>
+    </section>
+
+    <section class="extras">
+      <details class="disclosure">
+        <summary>The samples as a table</summary>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Time</th><th scope="col">Slot</th><th scope="col">Raydium</th><th scope="col">Orca</th><th scope="col">Spread (bps)</th></tr></thead>
+            <tbody id="samples-body"></tbody>
+          </table>
+        </div>
+      </details>
+      <details class="disclosure">
+        <summary>RPC endpoint</summary>
+        <p class="hint">Leave empty to use the built-in public endpoints. A custom URL is stored only in this browser.</p>
+        <form id="rpc-form">
+          <label class="visually-hidden" for="rpc-input">Custom RPC URL</label>
+          <input id="rpc-input" type="url" inputmode="url" placeholder="https://your-rpc.example" autocomplete="off" spellcheck="false">
+          <button type="submit">Use</button>
+          <button type="button" id="rpc-reset">Reset</button>
+        </form>
+      </details>
+    </section>
+  </main>
+
+  <footer class="colophon">
+    <p>Read-only. The page reads public chain data and never touches a wallet. Net figures subtract a 10,000 lamport Jito tip and a 25,000 lamport transaction fee, searched over trades of 0.01 to 50 SOL. Orca quotes are trusted only inside the pool's current tick range, and Raydium's price uses vault balances. A shown opportunity is a model estimate, not a guaranteed trade.</p>
+    <p><a href="https://github.com/Adnan-Husayn/solana-spatial-arbitrage">Source on GitHub</a></p>
+  </footer>
+
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
