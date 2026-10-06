@@ -2,6 +2,8 @@
 
 A Rust bot that watches the SOL/USDC pair on **Raydium V4** (constant-product AMM) and **Orca Whirlpools** (concentrated liquidity), works out whether a round trip between them is profitable after fees, and builds the atomic two-swap transaction to capture it.
 
+[![The Spread: a live monitor of the SOL/USDC gap between Raydium and Orca](docs/og.png)](https://adnan-husayn.github.io/solana-spatial-arbitrage/)
+
 **Live monitor:** <https://adnan-husayn.github.io/solana-spatial-arbitrage/>
 
 It runs in **simulation mode by default**. Live sending through Jito exists, is off unless you turn it on, and has not been run with real funds. See [Status](#status).
