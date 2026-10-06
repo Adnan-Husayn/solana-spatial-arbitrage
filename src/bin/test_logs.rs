@@ -1,9 +1,9 @@
+use futures::StreamExt;
 use solana_client::{
     nonblocking::pubsub_client::PubsubClient,
     rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter},
 };
-use solana_sdk::commitment_config::CommitmentConfig;
-use futures::StreamExt;
+use solana_commitment_config::CommitmentConfig;
 use spatial_arbitrage_bot::load_env_variables;
 
 #[tokio::main]
@@ -20,12 +20,10 @@ async fn main() -> anyhow::Result<()> {
 
     let filter = RpcTransactionLogsFilter::Mentions(vec![pool_id.to_string()]);
     let config = RpcTransactionLogsConfig {
-        commitment: Some(CommitmentConfig::processed()), 
+        commitment: Some(CommitmentConfig::processed()),
     };
 
-    let (mut stream, _unsub) = pubsub_client
-        .logs_subscribe(filter, config)
-        .await?;
+    let (mut stream, _unsub) = pubsub_client.logs_subscribe(filter, config).await?;
 
     while let Some(response) = stream.next().await {
         println!("TRADE DETECTED!! Tx: {}", response.value.signature);

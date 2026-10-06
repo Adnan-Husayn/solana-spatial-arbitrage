@@ -1,5 +1,5 @@
-use solana_client::nonblocking::pubsub_client::PubsubClient;
 use futures::StreamExt;
+use solana_client::nonblocking::pubsub_client::PubsubClient;
 use spatial_arbitrage_bot::load_env_variables;
 
 #[tokio::main]

@@ -5,15 +5,17 @@ pub const FEE_NUMERATOR: u128 = 25;
 pub const FEE_DENOMINATOR: u128 = 10000;
 
 pub fn calculate_swap_out(amount_in: u64, reserve_in: u64, reserve_out: u64) -> Result<u64> {
-    if amount_in == 0 { return Ok(0); }
+    if amount_in == 0 {
+        return Ok(0);
+    }
     let amount_in_u128 = amount_in as u128;
     let reserve_in_u128 = reserve_in as u128;
     let reserve_out_u128 = reserve_out as u128;
-    
+
     let effective_amount_in = amount_in_u128 * (FEE_DENOMINATOR - FEE_NUMERATOR);
     let numerator = effective_amount_in * reserve_out_u128;
     let denominator = (reserve_in_u128 * FEE_DENOMINATOR) + effective_amount_in;
-    
+
     Ok((numerator / denominator) as u64)
 }
 
@@ -22,7 +24,10 @@ fn get_input(prompt: &str) -> u64 {
     io::stdout().flush().unwrap();
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
-    input.trim().parse::<u64>().expect("Please enter a valid u64 integer")
+    input
+        .trim()
+        .parse::<u64>()
+        .expect("Please enter a valid u64 integer")
 }
 
 fn main() -> Result<()> {
